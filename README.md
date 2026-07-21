@@ -59,8 +59,8 @@ flowchart LR
 ### Run locally (requires Python 3.9+)
 
 ```bash
-git clone https://github.com/DegreeJr/slice
-cd slice
+git clone https://github.com/DegreeJr/SLICE
+cd SLICE
 
 python -m venv venv
 # Windows:  venv\Scripts\activate
