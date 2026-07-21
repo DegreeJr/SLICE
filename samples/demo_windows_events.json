@@ -1,0 +1,10 @@
+{"timestamp":"2026-07-18T08:00:01Z","EventID":4625,"User":"administrator","src_ip":"203.0.113.5","status":"FAIL","severity":"warning","message":"An account failed to log on"}
+{"timestamp":"2026-07-18T08:00:03Z","EventID":4625,"User":"administrator","src_ip":"203.0.113.5","status":"FAIL","severity":"warning","message":"An account failed to log on"}
+{"timestamp":"2026-07-18T08:00:05Z","EventID":4625,"User":"administrator","src_ip":"203.0.113.5","status":"FAIL","severity":"warning","message":"An account failed to log on"}
+{"timestamp":"2026-07-18T08:00:07Z","EventID":4625,"User":"administrator","src_ip":"203.0.113.5","status":"FAIL","severity":"warning","message":"An account failed to log on"}
+{"timestamp":"2026-07-18T08:01:00Z","EventID":4624,"User":"svcbackup","src_ip":"10.0.0.5","status":"SUCCESS","severity":"info","message":"An account was successfully logged on"}
+{"timestamp":"2026-07-18T08:02:00Z","EventID":5156,"src_ip":"10.0.0.1","dst_ip":"10.0.0.2","action":"allow","severity":"debug","message":"Windows Filtering Platform permitted connection"}
+{"timestamp":"2026-07-18T08:03:00Z","EventID":1,"User":"SYSTEM","Image":"C:\\Windows\\System32\\cmd.exe","CommandLine":"cmd.exe /c powershell.exe -nop -w hidden -encodedcommand aW52b2tlLWV4cHJlc3Npb24=","severity":"critical","message":"Suspicious process created"}
+{"timestamp":"2026-07-18T08:03:30Z","EventID":4625,"User":"jsmith","src_ip":"185.220.101.45","status":"FAIL","severity":"warning","message":"An account failed to log on"}
+{"timestamp":"2026-07-18T08:03:45Z","EventID":4625,"User":"asmith","src_ip":"198.51.100.12","status":"FAIL","severity":"warning","message":"An account failed to log on"}
+{"timestamp":"2026-07-18T08:04:00Z","EventID":4625,"User":"mdoe","src_ip":"203.0.113.77","status":"FAIL","severity":"warning","message":"An account failed to log on"}

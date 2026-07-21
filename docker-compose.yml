@@ -1,0 +1,11 @@
+services:
+  slice:
+    build: .
+    container_name: slice
+    ports:
+      - "7654:7654"
+    volumes:
+      # Persist config.yaml (API keys) and history.json on the host, in ./data.
+      # This directory is git-ignored, so secrets never end up in the repo.
+      - ./data:/data
+    restart: unless-stopped

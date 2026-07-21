@@ -1,0 +1,73 @@
+# === Secrets & local state (NEVER commit) ===
+# config.yaml contains API keys
+config.yaml
+config.*.yaml
+# local analysis history
+history.json
+# Docker persistent volume (config.yaml, history.json)
+data/
+# environment secrets
+.env
+.env.*
+*.key
+*.pem
+secrets.*
+credentials.*
+
+# === Large / downloaded log datasets ===
+# Keep only the small curated samples in samples/. Ignore bulky real data.
+sample_logs/
+*.log
+!samples/*.log
+*.log.gz
+*.gz
+*.zip
+*.7z
+*.pcap
+*.evtx
+
+# === Python ===
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+build/
+dist/
+*.egg
+
+# === Node / frontend build (if ever added) ===
+node_modules/
+
+# === Dev / scratch / notes (not for public repo) ===
+scratch/
+dev/
+notes/
+TODO.local.md
+*.local.md
+*.bak
+*.tmp
+*.orig
+.ipynb_checkpoints/
+
+# === AI assistant / editor caches ===
+.claude/
+.cursor/
+.aider*
+
+# === Frontend vendor (optional local cache) ===
+slice/static/vendor/*
+!slice/static/vendor/.gitkeep
+
+# === OS / editor ===
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp

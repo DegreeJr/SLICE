@@ -1,0 +1,20 @@
+Nov 30 06:39:00 ip-10-0-0-1 sshd[2211]: Invalid user admin from 203.0.113.5
+Nov 30 06:39:00 ip-10-0-0-1 sshd[2211]: input_userauth_request: invalid user admin [preauth]
+Nov 30 06:39:02 ip-10-0-0-1 sshd[2212]: Invalid user oracle from 203.0.113.5
+Nov 30 06:39:02 ip-10-0-0-1 sshd[2212]: input_userauth_request: invalid user oracle [preauth]
+Nov 30 06:39:04 ip-10-0-0-1 sshd[2213]: Invalid user test from 203.0.113.5
+Nov 30 06:39:04 ip-10-0-0-1 sshd[2213]: input_userauth_request: invalid user test [preauth]
+Nov 30 06:39:06 ip-10-0-0-1 sshd[2214]: Received disconnect from 203.0.113.5: 11: Bye Bye [preauth]
+Nov 30 06:39:08 ip-10-0-0-1 sshd[2215]: Received disconnect from 203.0.113.5: 11: Bye Bye [preauth]
+Nov 30 06:39:10 ip-10-0-0-1 sshd[2216]: Received disconnect from 203.0.113.5: 11: Bye Bye [preauth]
+Nov 30 06:39:12 ip-10-0-0-1 sshd[2217]: Disconnecting: Too many authentication failures for root [preauth]
+Nov 30 06:39:14 ip-10-0-0-1 sshd[2218]: Disconnecting: Too many authentication failures for root [preauth]
+Nov 30 06:40:00 ip-10-0-0-1 CRON[2300]: pam_unix(cron:session): session opened for user root by (uid=0)
+Nov 30 06:40:00 ip-10-0-0-1 CRON[2300]: pam_unix(cron:session): session closed for user root
+Nov 30 06:41:00 ip-10-0-0-1 sshd[2400]: Address 185.220.101.45 maps to tor-exit.example.com, but this does not map back to the address - POSSIBLE BREAK-IN ATTEMPT!
+Nov 30 06:41:05 ip-10-0-0-1 sshd[2401]: Invalid user ubnt from 185.220.101.45
+Nov 30 06:41:05 ip-10-0-0-1 sshd[2401]: input_userauth_request: invalid user ubnt [preauth]
+Nov 30 06:41:10 ip-10-0-0-1 sshd[2402]: Invalid user pi from 198.51.100.12
+Nov 30 06:41:10 ip-10-0-0-1 sshd[2402]: input_userauth_request: invalid user pi [preauth]
+Nov 30 06:41:15 ip-10-0-0-1 sshd[2403]: Received disconnect from 198.51.100.12: 11: Bye Bye [preauth]
+Nov 30 06:41:20 ip-10-0-0-1 sshd[2404]: fatal: Read from socket failed: Connection reset by peer [preauth]
