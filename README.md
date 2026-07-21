@@ -89,7 +89,7 @@ The recommended way to run SLICE on a server. It needs no local Python setup —
 **2. Start it**
 
 ```bash
-git clone https://github.com/DegreeJr/slice
+git clone https://github.com/DegreeJr/SLICE
 cd slice
 docker compose up -d
 ```
@@ -367,5 +367,3 @@ tests/            # unit tests for the pipeline
 ## License
 
 MIT — see [LICENSE](LICENSE).
-
-Built for HackNusa 2026 · "AI vs AI: Cyber Defense" track.
