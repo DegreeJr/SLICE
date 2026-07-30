@@ -269,7 +269,7 @@ const I18N = {
     'an.result':'Compression Result','an.copy':'Copy','an.copied':'Copied','an.analyze':'Analyze with AI','an.analyzing':'Analyzing…',
     'an.confidence':'Confidence','an.summary':'Summary','an.provider':'provider',
     'set.title':'Settings','set.subtitle':'API key & model per provider. Stored locally in','set.subtitle2':'it never leaves the machine.',
-    'set.active':'Active Provider','set.save':'Save Changes','set.saved':'✓ Saved',
+    'set.active':'Active Provider','set.save':'Save Changes','set.saved':'✓ Saved','set.saveFailed':'Save failed: ',
     'set.apikey':'API Key','set.model':'Model','set.baseurl':'Base URL','set.price':'Price / 1M tokens (USD, est.)',
     'set.keysaved':'● key saved','set.nokey':'○ no key','set.enterkey':'enter API key…','set.custommodel':'custom model name','set.customopt':'Custom…',
     'chart.before':'Before','chart.after':'After','chart.tokens':'Tokens','chart.lines':'Lines',
@@ -292,7 +292,7 @@ const I18N = {
     'an.result':'Hasil Kompresi','an.copy':'Salin','an.copied':'Tersalin','an.analyze':'Analisis dengan AI','an.analyzing':'Menganalisis…',
     'an.confidence':'Keyakinan','an.summary':'Ringkasan','an.provider':'provider',
     'set.title':'Pengaturan','set.subtitle':'API key & model per provider. Disimpan lokal di','set.subtitle2':'tidak pernah dikirim ke mana pun.',
-    'set.active':'Provider Aktif','set.save':'Simpan Perubahan','set.saved':'✓ Tersimpan',
+    'set.active':'Provider Aktif','set.save':'Simpan Perubahan','set.saved':'✓ Tersimpan','set.saveFailed':'Gagal menyimpan: ',
     'set.apikey':'API Key','set.model':'Model','set.baseurl':'Base URL','set.price':'Harga / 1M token (USD, est.)',
     'set.keysaved':'● key tersimpan','set.nokey':'○ belum ada key','set.enterkey':'masukkan API key…','set.custommodel':'nama model custom','set.customopt':'Custom…',
     'chart.before':'Sebelum','chart.after':'Sesudah','chart.tokens':'Token','chart.lines':'Baris',
@@ -465,11 +465,23 @@ async function saveSettings() {
     if (f === 'price_per_1m') { put(p,'price_per_1m', parseFloat(v)||0); return; }
   });
   const body = { active_provider: document.getElementById('active-provider').value, providers };
-  const r = await fetch('/api/config', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
-  CONFIG = await r.json();
   const st = document.getElementById('save-status');
-  st.textContent = t('set.saved'); setTimeout(()=>st.textContent='', 2500);
-  renderSettings();
+  try {
+    const r = await fetch('/api/config', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    if (!r.ok) {
+      let detail = 'HTTP ' + r.status;
+      try { detail = (await r.json()).detail || detail; } catch(e) {}
+      throw new Error(detail);
+    }
+    CONFIG = await r.json();
+    st.className = 'text-[12px] text-teal font-medium';
+    st.textContent = t('set.saved'); setTimeout(()=>st.textContent='', 2500);
+    renderSettings();
+  } catch (e) {
+    st.className = 'text-[12px] text-red-400 font-medium';
+    st.textContent = t('set.saveFailed') + e.message;
+    alert(t('set.saveFailed') + e.message);
+  }
 }
 
 // ---------- Upload ----------
