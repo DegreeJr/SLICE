@@ -17,9 +17,18 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(_ROOT, "src"))
 
 from pipeline import run_pipeline  # noqa: E402
+import injection_guard  # noqa: E402
 from . import config as cfg_mod  # noqa: E402
 from . import llm as llm_mod  # noqa: E402
 from . import history as hist_mod  # noqa: E402
+
+# Bundled demo logs that the UI can run with one click.
+_SAMPLES = {
+    "ssh_bruteforce": {"file": "demo_ssh_bruteforce.log", "label": "SSH brute force"},
+    "windows_events": {"file": "demo_windows_events.json", "label": "Windows events"},
+    "prompt_injection": {"file": "demo_prompt_injection.log", "label": "Prompt injection (defense demo)"},
+}
+_SAMPLES_DIR = os.path.join(_ROOT, "samples")
 
 app = FastAPI(title="SLICE", version="0.1.0")
 
@@ -36,6 +45,10 @@ class AnalyzeRequest(BaseModel):
 class ConfigUpdate(BaseModel):
     active_provider: str | None = None
     providers: dict | None = None
+
+
+class SampleRequest(BaseModel):
+    name: str
 
 
 # ---------- Helpers ----------
@@ -108,13 +121,14 @@ def update_config(update: ConfigUpdate):
     return cfg_mod.redacted(cfg_mod.load_config())
 
 
-@app.post("/api/compress")
-async def compress(file: UploadFile = File(...)):
-    """Upload a log file, run the local pipeline, return stats + compressed text."""
-    raw = (await file.read()).decode("utf-8", errors="ignore")
+def _process_raw(raw: str, filename: str) -> dict:
+    """Run the pipeline on raw log text, attach stats, log to history."""
     if not raw.strip():
         raise HTTPException(status_code=400, detail="The log file is empty.")
     compressed, stats = run_pipeline(raw)
+
+    # Injection guard: count injection attempts hidden in the compressed payload.
+    stats["injection_hits"] = len(injection_guard.scan(compressed))
 
     # Add a cost estimate based on the active provider
     cfg = cfg_mod.load_config()
@@ -128,7 +142,7 @@ async def compress(file: UploadFile = File(...)):
 
     # Save to history (metadata only, not the log contents)
     rec_id = hist_mod.add_record({
-        "filename": file.filename,
+        "filename": filename,
         "original_tokens": stats["original_tokens"],
         "compressed_tokens": stats["compressed_tokens"],
         "tokens_saved": stats["tokens_saved"],
@@ -141,7 +155,34 @@ async def compress(file: UploadFile = File(...)):
         "provider": cfg["active_provider"],
     })
 
-    return {"compressed": compressed, "stats": stats, "filename": file.filename, "history_id": rec_id}
+    return {"compressed": compressed, "stats": stats, "filename": filename, "history_id": rec_id}
+
+
+@app.post("/api/compress")
+async def compress(file: UploadFile = File(...)):
+    """Upload a log file, run the local pipeline, return stats + compressed text."""
+    raw = (await file.read()).decode("utf-8", errors="ignore")
+    return _process_raw(raw, file.filename)
+
+
+@app.get("/api/samples")
+def list_samples():
+    """List the bundled demo logs the UI can run with one click."""
+    return {"samples": [{"id": k, "label": v["label"]} for k, v in _SAMPLES.items()]}
+
+
+@app.post("/api/compress_sample")
+def compress_sample(req: SampleRequest):
+    """Run the pipeline on a bundled sample log (no upload needed)."""
+    meta = _SAMPLES.get(req.name)
+    if not meta:
+        raise HTTPException(status_code=404, detail=f"Unknown sample: {req.name}")
+    path = os.path.join(_SAMPLES_DIR, meta["file"])
+    if not os.path.isfile(path):
+        raise HTTPException(status_code=404, detail=f"Sample file missing: {meta['file']}")
+    with open(path, "r", encoding="utf-8", errors="ignore") as f:
+        raw = f.read()
+    return _process_raw(raw, meta["file"])
 
 
 @app.post("/api/analyze")
@@ -156,12 +197,22 @@ def analyze(req: AnalyzeRequest):
     budget = int(prov.get("max_context_tokens", 8000) or 8000)
     text, truncated = _truncate_to_budget(req.text, budget)
 
+    # Injection defense: neutralize injection phrases and spotlight-wrap the
+    # payload as untrusted data before it reaches the LLM.
+    protected, findings = injection_guard.defend(text)
+
     try:
-        report = llm_mod.analyze(text, prov)
+        report = llm_mod.analyze(protected, prov)
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"LLM error ({prov_name}): {e}")
     report["provider"] = prov_name
     report["model"] = prov.get("model")
+    report["injection"] = {
+        "hits": len(findings),
+        "neutralized": len(findings) > 0,
+        "rules": sorted({f["rule"] for f in findings}),
+        "samples": [f["match"] for f in findings[:5]],
+    }
     if truncated:
         report["note"] = (
             f"The log was too large for the context window; only the top ~{budget:,} tokens "

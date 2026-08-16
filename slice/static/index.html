@@ -205,6 +205,11 @@
           <div class="text-[11px] text-mut2 mt-1 font-mono">.log · .json · .txt · .syslog</div>
         </div>
 
+        <div class="mt-4 flex items-center gap-2 flex-wrap">
+          <span class="text-[11px] text-mut2 uppercase tracking-wide mr-1" data-i18n="an.trysample">Or try a sample</span>
+          <span id="sample-buttons" class="flex gap-2 flex-wrap"></span>
+        </div>
+
         <div id="analyze-result" class="hidden mt-7 space-y-6 fade">
           <div class="flex items-center gap-2.5">
             <span class="step-num">2</span>
@@ -223,11 +228,16 @@
               <button onclick="copyCompressed()" id="copy-btn" class="text-[11px] text-teal hover:underline font-semibold" data-i18n="an.copy">Copy</button>
             </div>
             <pre id="a-compressed" class="text-[11px] leading-relaxed text-mut bg-ink rounded-lg p-3.5 overflow-x-auto max-h-56 whitespace-pre font-mono border border-line"></pre>
+            <div id="a-injection" class="hidden mt-2 text-[11px] text-amber-400/90"></div>
           </div>
 
           <div class="flex items-center gap-2.5">
             <span class="step-num">3</span>
             <span class="text-[12px] font-semibold text-slate-300 uppercase tracking-wide" data-i18n="an.step3">Threat analysis</span>
+          </div>
+          <div id="analyze-nokey" class="hidden text-[12px] text-amber-400/90 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2.5 leading-relaxed">
+            <span data-i18n="an.nokey">Set an API key in Settings to run AI analysis.</span>
+            <button onclick="nav('settings')" class="text-teal font-semibold hover:underline ml-1" data-i18n="an.gosettings">Open Settings →</button>
           </div>
           <div class="flex items-center gap-4 flex-wrap">
             <button onclick="runAnalyze()" id="btn-analyze" class="bg-teal hover:bg-teal/90 text-ink font-semibold text-[13.5px] px-5 py-2.5 rounded-lg transition inline-flex items-center gap-2">
@@ -257,6 +267,7 @@
                 <div id="r-summary" class="text-[13px] text-slate-300 leading-relaxed"></div>
               </div>
             </div>
+            <div id="r-injection" class="hidden mt-4 text-[12px] rounded-lg px-3 py-2.5 leading-relaxed border"></div>
             <div id="r-note" class="hidden mt-4 text-[11px] text-amber-400/90 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2 leading-relaxed"></div>
           </div>
         </div>
@@ -306,6 +317,8 @@ const I18N = {
     'an.orig':'Original tokens','an.comp':'Compressed','an.reduction':'Reduction','an.saved':'Est. saved',
     'an.result':'Compressed output','an.copy':'Copy','an.copied':'Copied','an.analyze':'Analyze with AI','an.analyzing':'Analyzing…',
     'an.confidence':'Confidence','an.summary':'Summary','an.provider':'provider',
+    'an.trysample':'Or try a sample','an.nokey':'Set an API key in Settings to run AI analysis.','an.gosettings':'Open Settings →',
+    'an.injtitle':'Prompt injection defense','an.injneutralized':'injection pattern(s) found in the logs and neutralized before analysis.','an.injclean':'No prompt injection detected in the logs.','an.injfound':'possible injection pattern(s) in this log',
     'set.title':'Settings','set.subtitle':'API key & model per provider. Stored locally in','set.subtitle2':'it never leaves the machine.',
     'set.active':'Active Provider','set.save':'Save Changes','set.saved':'✓ Saved','set.saveFailed':'Save failed: ',
     'set.apikey':'API Key','set.model':'Model','set.baseurl':'Base URL','set.price':'Price / 1M tokens (USD, est.)',
@@ -331,6 +344,8 @@ const I18N = {
     'an.orig':'Token asli','an.comp':'Terkompresi','an.reduction':'Reduksi','an.saved':'Est. hemat',
     'an.result':'Output terkompresi','an.copy':'Salin','an.copied':'Tersalin','an.analyze':'Analisis dengan AI','an.analyzing':'Menganalisis…',
     'an.confidence':'Keyakinan','an.summary':'Ringkasan','an.provider':'provider',
+    'an.trysample':'Atau coba sampel','an.nokey':'Atur API key di Pengaturan untuk menjalankan analisis AI.','an.gosettings':'Buka Pengaturan →',
+    'an.injtitle':'Pertahanan prompt injection','an.injneutralized':'pola injeksi ditemukan di log dan dinetralkan sebelum analisis.','an.injclean':'Tidak ada prompt injection terdeteksi di log.','an.injfound':'kemungkinan pola injeksi di log ini',
     'set.title':'Pengaturan','set.subtitle':'API key & model per provider. Disimpan lokal di','set.subtitle2':'tidak pernah dikirim ke mana pun.',
     'set.active':'Provider Aktif','set.save':'Simpan Perubahan','set.saved':'✓ Tersimpan','set.saveFailed':'Gagal menyimpan: ',
     'set.apikey':'API Key','set.model':'Model','set.baseurl':'Base URL','set.price':'Harga / 1M token (USD, est.)',
@@ -568,6 +583,9 @@ function showResult(data) {
   document.getElementById('a-cost').textContent = '$' + (s.cost_saved || 0).toFixed(4);
   document.getElementById('a-compressed').textContent = data.compressed;
   document.getElementById('analyze-provider').textContent = t('an.provider') + ': ' + s.active_provider;
+  const ai = document.getElementById('a-injection');
+  if (s.injection_hits > 0) { ai.textContent = '⚠ ' + s.injection_hits + ' ' + t('an.injfound'); ai.classList.remove('hidden'); }
+  else { ai.classList.add('hidden'); }
   document.getElementById('report').classList.add('hidden');
 }
 
@@ -577,6 +595,10 @@ function copyCompressed() {
 }
 
 async function runAnalyze() {
+  const prov = CONFIG && CONFIG.providers && CONFIG.providers[CONFIG.active_provider];
+  const nokey = document.getElementById('analyze-nokey');
+  if (!prov || !prov._has_key) { nokey.classList.remove('hidden'); return; }
+  nokey.classList.add('hidden');
   const btn = document.getElementById('btn-analyze');
   btn.disabled = true; const old = btn.innerHTML; btn.innerHTML = '⏳ '+t('an.analyzing');
   try {
@@ -600,6 +622,18 @@ function showReport(rep) {
   document.getElementById('r-mitre').textContent = rep.mitre_technique;
   document.getElementById('r-model').textContent = rep.model || '';
   document.getElementById('r-summary').textContent = rep.summary;
+  const inj = document.getElementById('r-injection');
+  if (rep.injection && rep.injection.hits > 0) {
+    inj.className = 'mt-4 text-[12px] rounded-lg px-3 py-2.5 leading-relaxed border bg-teal/10 border-teal/25 text-teal';
+    const rules = (rep.injection.rules || []).join(', ');
+    inj.innerHTML = '🛡 <b>' + t('an.injtitle') + ':</b> ' + rep.injection.hits + ' ' + t('an.injneutralized') +
+      (rules ? ' <span class="text-mut2 font-mono">[' + rules + ']</span>' : '');
+    inj.classList.remove('hidden');
+  } else if (rep.injection) {
+    inj.className = 'mt-4 text-[12px] rounded-lg px-3 py-2.5 leading-relaxed border border-line text-mut2';
+    inj.innerHTML = '🛡 ' + t('an.injclean');
+    inj.classList.remove('hidden');
+  } else { inj.classList.add('hidden'); }
   const note = document.getElementById('r-note');
   if (rep.note) { note.textContent = '⚠ ' + rep.note; note.classList.remove('hidden'); }
   else { note.classList.add('hidden'); }
@@ -626,11 +660,37 @@ function updateCharts(s) {
   });
 }
 
+// ---------- Samples ----------
+async function loadSamples() {
+  try {
+    const r = await fetch('/api/samples');
+    const d = await r.json();
+    const box = document.getElementById('sample-buttons');
+    box.innerHTML = (d.samples || []).map(s =>
+      `<button onclick="runSample('${s.id}')" class="text-[12px] px-3 py-1.5 rounded-lg border border-line2 bg-panel hover:border-teal/60 text-slate-300 transition">${s.label}</button>`
+    ).join('');
+  } catch (e) {}
+}
+
+async function runSample(id) {
+  const drop = document.getElementById('drop');
+  drop.innerHTML = '<div class="text-mut text-[13px] py-1">⏳ ' + t('an.processing') + '…</div>';
+  try {
+    const r = await fetch('/api/compress_sample', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ name: id }) });
+    if (!r.ok) throw new Error((await r.json()).detail);
+    const data = await r.json();
+    LAST_STATS = data.stats; LAST_COMPRESSED = data.compressed; LAST_HISTORY_ID = data.history_id;
+    showResult(data); loadHistory();
+  } catch (e) { alert(t('msg.failed') + e.message); }
+  restoreDrop();
+}
+
 // ---------- Init ----------
 applyLang();
 bindDrop();
 loadConfig();
 loadHistory();
+loadSamples();
 </script>
 </body>
 </html>
