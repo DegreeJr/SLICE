@@ -9,66 +9,82 @@
 <script>
   tailwind.config = { theme: { extend: {
     colors: {
-      ink: '#0b0f16', panel: '#111722', panel2: '#0d131c',
-      line: '#1d2634', line2: '#2a3547',
-      mut: '#8492a6', mut2: '#5b6879',
+      ink: '#080b11', ink2: '#0a0e15', panel: '#111826', panel2: '#0c111b',
+      line: '#1c2534', line2: '#2b384c',
+      mut: '#8a97ab', mut2: '#586577',
       teal: '#2dd4bf', tealdim: '#0f766e',
     },
     fontFamily: {
       mono: ['ui-monospace','SFMono-Regular','Menlo','Consolas','monospace'],
       sans: ['Inter','ui-sans-serif','system-ui','-apple-system','Segoe UI','sans-serif'],
-    }
+    },
+    boxShadow: { card: '0 1px 0 0 rgba(255,255,255,.02) inset, 0 8px 24px -12px rgba(0,0,0,.6)' }
   }}}
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
   :root { color-scheme: dark; }
-  body { background:#0b0f16; font-family:'Inter',system-ui,sans-serif; -webkit-font-smoothing:antialiased; }
-  .grid-bg { background-image: radial-gradient(circle at 1px 1px, #16202e 1px, transparent 0); background-size: 22px 22px; }
+  body { background:#080b11; font-family:'Inter',system-ui,sans-serif; -webkit-font-smoothing:antialiased; }
+  .app-bg {
+    background:
+      radial-gradient(680px 380px at 78% -8%, rgba(45,212,191,.07), transparent 60%),
+      radial-gradient(560px 340px at 0% 100%, rgba(45,212,191,.045), transparent 55%);
+  }
+  .grid-bg { background-image: radial-gradient(circle at 1px 1px, #141d2b 1px, transparent 0); background-size: 24px 24px; }
   ::-webkit-scrollbar { width:9px; height:9px; }
-  ::-webkit-scrollbar-thumb { background:#222d3d; border-radius:5px; }
+  ::-webkit-scrollbar-thumb { background:#232f41; border-radius:5px; }
+  ::-webkit-scrollbar-thumb:hover { background:#2e3d52; }
   ::-webkit-scrollbar-track { background:transparent; }
+
   .nav-item { position:relative; }
-  .nav-item.active { color:#e7ecf3; }
-  .nav-item.active::before { content:''; position:absolute; left:0; top:14%; height:72%; width:2px; background:#2dd4bf; border-radius:2px; }
+  .nav-item.active { color:#eef2f7; background:linear-gradient(90deg, rgba(45,212,191,.10), transparent 70%); }
+  .nav-item.active::before { content:''; position:absolute; left:0; top:16%; height:68%; width:2.5px; background:#2dd4bf; border-radius:0 3px 3px 0; box-shadow:0 0 12px rgba(45,212,191,.6); }
   .nav-item.active .ico { color:#2dd4bf; }
-  .fade { animation: fade .35s cubic-bezier(.2,.8,.2,1); }
-  @keyframes fade { from{opacity:0; transform:translateY(8px)} to{opacity:1; transform:none} }
+
+  .card { background:linear-gradient(180deg, #121a28, #0e1521); border:1px solid #1c2534; border-radius:16px; box-shadow:0 1px 0 0 rgba(255,255,255,.02) inset, 0 10px 28px -16px rgba(0,0,0,.7); }
+  .card-hover { transition:transform .18s cubic-bezier(.2,.8,.2,1), border-color .18s; }
+  .card-hover:hover { transform:translateY(-2px); border-color:#2b384c; }
+
+  .fade { animation: fade .4s cubic-bezier(.2,.8,.2,1); }
+  @keyframes fade { from{opacity:0; transform:translateY(10px)} to{opacity:1; transform:none} }
   .stat-num { font-variant-numeric: tabular-nums; letter-spacing:-0.02em; }
+
   input[type=number]::-webkit-inner-spin-button { opacity:1; height:26px; }
-  select { -webkit-appearance:none; appearance:none; background-image:url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235b6879' stroke-width='2'%3e%3cpath d='M6 9l6 6 6-6'/%3e%3c/svg%3e"); background-repeat:no-repeat; background-position:right .6rem center; background-size:1rem; }
-  .drop-active { border-color:#2dd4bf !important; background:#0e1a1a; }
+  select { -webkit-appearance:none; appearance:none; background-image:url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23586577' stroke-width='2'%3e%3cpath d='M6 9l6 6 6-6'/%3e%3c/svg%3e"); background-repeat:no-repeat; background-position:right .65rem center; background-size:1rem; }
+  .drop-active { border-color:#2dd4bf !important; background:#0c1a1a; box-shadow:0 0 0 4px rgba(45,212,191,.08); }
   .lang-btn.active { background:#16212f; color:#2dd4bf; }
+
+  .step-num { width:22px; height:22px; border-radius:999px; display:inline-flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; background:#16212f; color:#2dd4bf; border:1px solid #22344a; }
 </style>
 </head>
 <body class="text-slate-200 min-h-screen">
-<div class="flex min-h-screen">
+<div class="flex min-h-screen app-bg">
 
   <!-- Sidebar -->
-  <aside class="w-[236px] shrink-0 border-r border-line bg-panel2 flex flex-col">
+  <aside class="w-[240px] shrink-0 border-r border-line bg-panel2/70 backdrop-blur flex flex-col">
     <div class="px-5 h-16 flex items-center gap-3 border-b border-line">
-      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" class="shrink-0">
+      <svg width="27" height="27" viewBox="0 0 24 24" fill="none" class="shrink-0">
         <rect x="3" y="4" width="18" height="3.4" rx="1.2" fill="#2dd4bf"/>
         <rect x="3" y="10.3" width="18" height="3.4" rx="1.2" fill="#2dd4bf" opacity="0.62"/>
         <rect x="3" y="16.6" width="18" height="3.4" rx="1.2" fill="#2dd4bf" opacity="0.32"/>
       </svg>
       <div>
-        <div class="font-bold tracking-tight text-white leading-none text-[15px]">SLICE</div>
-        <div class="text-[10px] text-mut2 mt-1 tracking-wide">COMPRESSION ENGINE</div>
+        <div class="font-extrabold tracking-tight text-white leading-none text-[15px]">SLICE</div>
+        <div class="text-[9.5px] text-mut2 mt-1 tracking-[0.14em]">COMPRESSION ENGINE</div>
       </div>
     </div>
 
-    <nav class="flex-1 py-4 px-3 space-y-0.5">
-      <button onclick="nav('dashboard')" id="nav-dashboard" class="nav-item active w-full text-left pl-4 pr-3 py-2.5 rounded-lg text-[13.5px] text-mut hover:text-slate-200 hover:bg-panel flex items-center gap-3 transition">
+    <nav class="flex-1 py-4 px-3 space-y-1">
+      <button onclick="nav('dashboard')" id="nav-dashboard" class="nav-item active w-full text-left pl-4 pr-3 py-2.5 rounded-lg text-[13.5px] text-mut hover:text-slate-100 flex items-center gap-3 transition">
         <svg class="ico w-4 h-4 text-mut2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>
         <span data-i18n="nav.dashboard">Dashboard</span>
       </button>
-      <button onclick="nav('analyze')" id="nav-analyze" class="nav-item w-full text-left pl-4 pr-3 py-2.5 rounded-lg text-[13.5px] text-mut hover:text-slate-200 hover:bg-panel flex items-center gap-3 transition">
+      <button onclick="nav('analyze')" id="nav-analyze" class="nav-item w-full text-left pl-4 pr-3 py-2.5 rounded-lg text-[13.5px] text-mut hover:text-slate-100 flex items-center gap-3 transition">
         <svg class="ico w-4 h-4 text-mut2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
         <span data-i18n="nav.analyze">Analyze</span>
       </button>
-      <button onclick="nav('settings')" id="nav-settings" class="nav-item w-full text-left pl-4 pr-3 py-2.5 rounded-lg text-[13.5px] text-mut hover:text-slate-200 hover:bg-panel flex items-center gap-3 transition">
+      <button onclick="nav('settings')" id="nav-settings" class="nav-item w-full text-left pl-4 pr-3 py-2.5 rounded-lg text-[13.5px] text-mut hover:text-slate-100 flex items-center gap-3 transition">
         <svg class="ico w-4 h-4 text-mut2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-2.82 1.17V21a2 2 0 11-4 0v-.09A1.65 1.65 0 007 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 004.6 14H4.5a2 2 0 110-4h.09A1.65 1.65 0 006 8.6a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 0010 4.6h.09A1.65 1.65 0 0011 3.09V3a2 2 0 114 0v.09a1.65 1.65 0 002.51 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 10v.09a1.65 1.65 0 001.51 1z"/></svg>
         <span data-i18n="nav.settings">Settings</span>
       </button>
@@ -92,53 +108,61 @@
 
   <!-- Main -->
   <main class="flex-1 overflow-y-auto grid-bg">
-    <div class="max-w-5xl mx-auto px-8 py-8">
+    <div class="max-w-5xl mx-auto px-8 py-9">
 
       <!-- ===== DASHBOARD ===== -->
       <section id="page-dashboard" class="page">
-        <header class="mb-7">
-          <h1 class="text-[22px] font-bold text-white tracking-tight" data-i18n="dash.title">Dashboard</h1>
-          <p class="text-mut text-[13px] mt-1" data-i18n="dash.subtitle">Token-efficiency summary across your analyses.</p>
+        <header class="mb-7 flex items-end justify-between gap-4 flex-wrap">
+          <div>
+            <h1 class="text-[23px] font-bold text-white tracking-tight" data-i18n="dash.title">Dashboard</h1>
+            <p class="text-mut text-[13px] mt-1" data-i18n="dash.subtitle">Token savings across every log you've processed.</p>
+          </div>
+          <button onclick="nav('analyze')" class="shrink-0 bg-teal hover:bg-teal/90 text-ink font-semibold text-[13px] px-4 py-2.5 rounded-lg transition inline-flex items-center gap-2">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+            <span data-i18n="dash.newrun">New analysis</span>
+          </button>
         </header>
 
-        <div id="dash-empty" class="rounded-xl border border-line bg-panel/60 p-14 text-center">
-          <svg class="w-10 h-10 mx-auto text-line2 mb-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 3v18h18"/><path d="M18 9l-5 5-3-3-4 4"/></svg>
-          <div class="text-mut text-[13px]" data-i18n="dash.empty">No data yet.</div>
-          <button onclick="nav('analyze')" class="mt-3 text-teal text-[13px] font-medium hover:underline" data-i18n="dash.first">Process your first log →</button>
+        <div id="dash-empty" class="card p-14 text-center">
+          <div class="w-12 h-12 mx-auto rounded-xl bg-teal/10 border border-teal/20 flex items-center justify-center mb-4">
+            <svg class="w-6 h-6 text-teal" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 3v18h18"/><path d="M18 9l-5 5-3-3-4 4"/></svg>
+          </div>
+          <div class="text-slate-300 text-[14px] font-medium" data-i18n="dash.empty">No data yet.</div>
+          <button onclick="nav('analyze')" class="mt-3 text-teal text-[13px] font-semibold hover:underline" data-i18n="dash.first">Process your first log →</button>
         </div>
 
         <div id="dash-content" class="hidden space-y-6">
           <div class="grid grid-cols-2 md:grid-cols-4 gap-3.5">
-            <div class="rounded-xl border border-line bg-panel p-4">
+            <div class="card card-hover p-4">
               <div class="text-[11px] text-mut2 uppercase tracking-wide" data-i18n="dash.runs">Total analyses</div>
-              <div id="d-runs" class="stat-num text-[26px] font-bold text-white mt-1.5 font-mono">–</div>
+              <div id="d-runs" class="stat-num text-[27px] font-bold text-white mt-1.5 font-mono">–</div>
             </div>
-            <div class="rounded-xl border border-line bg-panel p-4">
+            <div class="card card-hover p-4">
               <div class="text-[11px] text-mut2 uppercase tracking-wide" data-i18n="dash.saved">Total tokens saved</div>
-              <div id="d-tok-saved" class="stat-num text-[26px] font-bold text-teal mt-1.5 font-mono">–</div>
+              <div id="d-tok-saved" class="stat-num text-[27px] font-bold text-teal mt-1.5 font-mono">–</div>
             </div>
-            <div class="rounded-xl border border-line bg-panel p-4">
+            <div class="card card-hover p-4">
               <div class="text-[11px] text-mut2 uppercase tracking-wide" data-i18n="dash.avg">Avg reduction</div>
-              <div id="d-avg" class="stat-num text-[26px] font-bold text-teal mt-1.5 font-mono">–</div>
+              <div id="d-avg" class="stat-num text-[27px] font-bold text-teal mt-1.5 font-mono">–</div>
             </div>
-            <div class="rounded-xl border border-line bg-panel p-4">
+            <div class="card card-hover p-4">
               <div class="text-[11px] text-mut2 uppercase tracking-wide" data-i18n="dash.cost">Total est. saved</div>
-              <div id="d-cost" class="stat-num text-[26px] font-bold text-amber-400 mt-1.5 font-mono">–</div>
+              <div id="d-cost" class="stat-num text-[27px] font-bold text-amber-400 mt-1.5 font-mono">–</div>
             </div>
           </div>
 
           <div class="grid md:grid-cols-5 gap-5">
-            <div class="md:col-span-3 rounded-xl border border-line bg-panel p-5">
+            <div class="md:col-span-3 card p-5">
               <h3 class="text-[12px] font-semibold text-slate-300 uppercase tracking-wide mb-4"><span data-i18n="dash.beforeafter">Before vs After</span> <span class="text-mut2 normal-case font-normal" data-i18n="dash.latest">(latest)</span></h3>
               <canvas id="chartBar" height="190"></canvas>
             </div>
-            <div class="md:col-span-2 rounded-xl border border-line bg-panel p-5">
+            <div class="md:col-span-2 card p-5">
               <h3 class="text-[12px] font-semibold text-slate-300 uppercase tracking-wide mb-4" data-i18n="dash.source">Reduction Source</h3>
               <canvas id="chartDonut" height="190"></canvas>
             </div>
           </div>
 
-          <div class="rounded-xl border border-line bg-panel p-5">
+          <div class="card p-5">
             <div class="flex items-center justify-between mb-3">
               <h3 class="text-[12px] font-semibold text-slate-300 uppercase tracking-wide" data-i18n="dash.history">Analysis History</h3>
               <button onclick="clearHistory()" class="text-[11px] text-mut2 hover:text-red-400 transition" data-i18n="dash.clear">Clear</button>
@@ -166,34 +190,46 @@
       <!-- ===== ANALYZE ===== -->
       <section id="page-analyze" class="page hidden">
         <header class="mb-7">
-          <h1 class="text-[22px] font-bold text-white tracking-tight" data-i18n="an.title">Analyze</h1>
-          <p class="text-mut text-[13px] mt-1" data-i18n="an.subtitle">Upload a log (Syslog / JSON). Processed locally — only the compressed result is sent to the LLM.</p>
+          <h1 class="text-[23px] font-bold text-white tracking-tight" data-i18n="an.title">Analyze</h1>
+          <p class="text-mut text-[13px] mt-1" data-i18n="an.subtitle">Upload a Syslog or JSON log. Compression runs on your machine; only the compressed summary reaches the LLM.</p>
         </header>
 
-        <div id="drop" class="rounded-xl border-2 border-dashed border-line2 bg-panel/40 p-12 text-center cursor-pointer transition hover:border-teal/60">
+        <div class="flex items-center gap-2.5 mb-3">
+          <span class="step-num">1</span>
+          <span class="text-[12px] font-semibold text-slate-300 uppercase tracking-wide" data-i18n="an.step1">Upload a log</span>
+        </div>
+        <div id="drop" class="card border-2 border-dashed border-line2 bg-panel/40 p-12 text-center cursor-pointer transition hover:border-teal/60">
           <input type="file" id="fileInput" class="hidden" accept=".log,.json,.txt,.syslog,.csv" />
           <svg class="w-9 h-9 mx-auto text-mut2 mb-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg>
           <div class="text-slate-300 text-[14px] font-medium" data-i18n="an.drop">Click or drop a log file</div>
           <div class="text-[11px] text-mut2 mt-1 font-mono">.log · .json · .txt · .syslog</div>
         </div>
 
-        <div id="analyze-result" class="hidden mt-6 space-y-6 fade">
+        <div id="analyze-result" class="hidden mt-7 space-y-6 fade">
+          <div class="flex items-center gap-2.5">
+            <span class="step-num">2</span>
+            <span class="text-[12px] font-semibold text-slate-300 uppercase tracking-wide" data-i18n="an.step2">Compression result</span>
+          </div>
           <div class="grid grid-cols-2 md:grid-cols-4 gap-3.5">
-            <div class="rounded-xl border border-line bg-panel p-4"><div class="text-[11px] text-mut2 uppercase tracking-wide" data-i18n="an.orig">Original tokens</div><div id="a-tok-orig" class="stat-num text-[20px] font-bold text-slate-300 mt-1 font-mono">–</div></div>
-            <div class="rounded-xl border border-line bg-panel p-4"><div class="text-[11px] text-mut2 uppercase tracking-wide" data-i18n="an.comp">Compressed</div><div id="a-tok-comp" class="stat-num text-[20px] font-bold text-teal mt-1 font-mono">–</div></div>
-            <div class="rounded-xl border border-line bg-panel p-4"><div class="text-[11px] text-mut2 uppercase tracking-wide" data-i18n="an.reduction">Reduction</div><div id="a-tok-pct" class="stat-num text-[20px] font-bold text-teal mt-1 font-mono">–</div></div>
-            <div class="rounded-xl border border-line bg-panel p-4"><div class="text-[11px] text-mut2 uppercase tracking-wide" data-i18n="an.saved">Est. saved</div><div id="a-cost" class="stat-num text-[20px] font-bold text-amber-400 mt-1 font-mono">–</div></div>
+            <div class="card p-4"><div class="text-[11px] text-mut2 uppercase tracking-wide" data-i18n="an.orig">Original tokens</div><div id="a-tok-orig" class="stat-num text-[21px] font-bold text-slate-300 mt-1 font-mono">–</div></div>
+            <div class="card p-4"><div class="text-[11px] text-mut2 uppercase tracking-wide" data-i18n="an.comp">Compressed</div><div id="a-tok-comp" class="stat-num text-[21px] font-bold text-teal mt-1 font-mono">–</div></div>
+            <div class="card p-4"><div class="text-[11px] text-mut2 uppercase tracking-wide" data-i18n="an.reduction">Reduction</div><div id="a-tok-pct" class="stat-num text-[21px] font-bold text-teal mt-1 font-mono">–</div></div>
+            <div class="card p-4"><div class="text-[11px] text-mut2 uppercase tracking-wide" data-i18n="an.saved">Est. saved</div><div id="a-cost" class="stat-num text-[21px] font-bold text-amber-400 mt-1 font-mono">–</div></div>
           </div>
 
-          <div class="rounded-xl border border-line bg-panel p-5">
+          <div class="card p-5">
             <div class="flex items-center justify-between mb-3">
-              <h3 class="text-[12px] font-semibold text-slate-300 uppercase tracking-wide" data-i18n="an.result">Compression Result</h3>
-              <button onclick="copyCompressed()" id="copy-btn" class="text-[11px] text-teal hover:underline font-medium" data-i18n="an.copy">Copy</button>
+              <h3 class="text-[12px] font-semibold text-slate-300 uppercase tracking-wide" data-i18n="an.result">Compressed output</h3>
+              <button onclick="copyCompressed()" id="copy-btn" class="text-[11px] text-teal hover:underline font-semibold" data-i18n="an.copy">Copy</button>
             </div>
             <pre id="a-compressed" class="text-[11px] leading-relaxed text-mut bg-ink rounded-lg p-3.5 overflow-x-auto max-h-56 whitespace-pre font-mono border border-line"></pre>
           </div>
 
-          <div class="flex items-center gap-4">
+          <div class="flex items-center gap-2.5">
+            <span class="step-num">3</span>
+            <span class="text-[12px] font-semibold text-slate-300 uppercase tracking-wide" data-i18n="an.step3">Threat analysis</span>
+          </div>
+          <div class="flex items-center gap-4 flex-wrap">
             <button onclick="runAnalyze()" id="btn-analyze" class="bg-teal hover:bg-teal/90 text-ink font-semibold text-[13.5px] px-5 py-2.5 rounded-lg transition inline-flex items-center gap-2">
               <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7.4-6.3-4.6L5.7 21 8 14 2 9.4h7.6z"/></svg>
               <span data-i18n="an.analyze">Analyze with AI</span>
@@ -201,7 +237,7 @@
             <span id="analyze-provider" class="text-[11px] text-mut2 font-mono"></span>
           </div>
 
-          <div id="report" class="hidden rounded-xl border border-line bg-panel p-6 fade">
+          <div id="report" class="hidden card p-6 fade">
             <div class="flex items-center gap-4 mb-5 flex-wrap">
               <span id="r-verdict" class="px-3 py-1 rounded-md text-[11px] font-bold tracking-wide">–</span>
               <div class="flex items-center gap-2.5 flex-1 min-w-[180px]">
@@ -229,11 +265,11 @@
       <!-- ===== SETTINGS ===== -->
       <section id="page-settings" class="page hidden">
         <header class="mb-7">
-          <h1 class="text-[22px] font-bold text-white tracking-tight" data-i18n="set.title">Settings</h1>
-          <p class="text-mut text-[13px] mt-1"><span data-i18n="set.subtitle">API key & model per provider. Stored locally in</span> <code class="text-teal font-mono">config.yaml</code> — <span data-i18n="set.subtitle2">it never leaves the machine.</span></p>
+          <h1 class="text-[23px] font-bold text-white tracking-tight" data-i18n="set.title">Settings</h1>
+          <p class="text-mut text-[13px] mt-1"><span data-i18n="set.subtitle">API key & model per provider. Stored locally in</span> <code class="text-teal font-mono">config.yaml</code> <span data-i18n="set.subtitle2">it never leaves the machine.</span></p>
         </header>
 
-        <div class="rounded-xl border border-line bg-panel p-5 mb-5">
+        <div class="card p-5 mb-5">
           <label class="text-[11px] text-mut2 uppercase tracking-wide" data-i18n="set.active">Active Provider</label>
           <select id="active-provider" class="w-full mt-2 bg-ink border border-line2 rounded-lg px-3.5 py-2.5 text-[13.5px] text-slate-200 focus:border-teal focus:outline-none"></select>
         </div>
@@ -256,17 +292,19 @@ const I18N = {
   en: {
     'nav.dashboard':'Dashboard','nav.analyze':'Analyze','nav.settings':'Settings',
     'side.local':'Processed locally','side.privacy':'Raw logs never leave this machine.',
-    'dash.title':'Dashboard','dash.subtitle':'Token-efficiency summary across your analyses.',
+    'dash.title':'Dashboard','dash.subtitle':"Token savings across every log you've processed.",
+    'dash.newrun':'New analysis',
     'dash.empty':'No data yet.','dash.first':'Process your first log →',
     'dash.runs':'Total analyses','dash.saved':'Total tokens saved','dash.avg':'Avg reduction','dash.cost':'Total est. saved',
     'dash.beforeafter':'Before vs After','dash.latest':'(latest)','dash.source':'Reduction Source',
     'dash.history':'Analysis History','dash.clear':'Clear',
     'th.time':'Time','th.file':'File','th.token':'Tokens','th.reduction':'Reduction','th.verdict':'Verdict',
     'dash.note':'History is stored locally in history.json (metadata only, not log contents). Cost estimates use the token price you set in Settings — an estimate, not an official bill.',
-    'an.title':'Analyze','an.subtitle':'Upload a log (Syslog / JSON). Processed locally — only the compressed result is sent to the LLM.',
+    'an.title':'Analyze','an.subtitle':'Upload a Syslog or JSON log. Compression runs on your machine; only the compressed summary reaches the LLM.',
+    'an.step1':'Upload a log','an.step2':'Compression result','an.step3':'Threat analysis',
     'an.drop':'Click or drop a log file','an.dropAgain':'Click or drop another log file','an.processing':'Processing',
     'an.orig':'Original tokens','an.comp':'Compressed','an.reduction':'Reduction','an.saved':'Est. saved',
-    'an.result':'Compression Result','an.copy':'Copy','an.copied':'Copied','an.analyze':'Analyze with AI','an.analyzing':'Analyzing…',
+    'an.result':'Compressed output','an.copy':'Copy','an.copied':'Copied','an.analyze':'Analyze with AI','an.analyzing':'Analyzing…',
     'an.confidence':'Confidence','an.summary':'Summary','an.provider':'provider',
     'set.title':'Settings','set.subtitle':'API key & model per provider. Stored locally in','set.subtitle2':'it never leaves the machine.',
     'set.active':'Active Provider','set.save':'Save Changes','set.saved':'✓ Saved','set.saveFailed':'Save failed: ',
@@ -279,17 +317,19 @@ const I18N = {
   id: {
     'nav.dashboard':'Dasbor','nav.analyze':'Analisis','nav.settings':'Pengaturan',
     'side.local':'Diproses lokal','side.privacy':'Log mentah tidak keluar dari mesin ini.',
-    'dash.title':'Dasbor','dash.subtitle':'Ringkasan efisiensi token dari seluruh analisis Anda.',
+    'dash.title':'Dasbor','dash.subtitle':'Penghematan token dari setiap log yang Anda proses.',
+    'dash.newrun':'Analisis baru',
     'dash.empty':'Belum ada data.','dash.first':'Proses log pertama →',
     'dash.runs':'Total analisis','dash.saved':'Total token dihemat','dash.avg':'Rata-rata reduksi','dash.cost':'Total est. hemat',
     'dash.beforeafter':'Sebelum vs Sesudah','dash.latest':'(terakhir)','dash.source':'Sumber Reduksi',
     'dash.history':'Riwayat Analisis','dash.clear':'Bersihkan',
     'th.time':'Waktu','th.file':'File','th.token':'Token','th.reduction':'Reduksi','th.verdict':'Verdict',
     'dash.note':'Riwayat tersimpan lokal di history.json (metadata saja, bukan isi log). Estimasi biaya memakai harga token yang Anda set di Pengaturan — perkiraan, bukan tagihan resmi.',
-    'an.title':'Analisis','an.subtitle':'Unggah log (Syslog / JSON). Diproses lokal — hanya hasil kompresi yang dikirim ke LLM.',
+    'an.title':'Analisis','an.subtitle':'Unggah log Syslog atau JSON. Kompresi berjalan di mesin Anda; hanya ringkasan terkompresi yang dikirim ke LLM.',
+    'an.step1':'Unggah log','an.step2':'Hasil kompresi','an.step3':'Analisis ancaman',
     'an.drop':'Klik atau letakkan file log','an.dropAgain':'Klik atau letakkan file log lain','an.processing':'Memproses',
     'an.orig':'Token asli','an.comp':'Terkompresi','an.reduction':'Reduksi','an.saved':'Est. hemat',
-    'an.result':'Hasil Kompresi','an.copy':'Salin','an.copied':'Tersalin','an.analyze':'Analisis dengan AI','an.analyzing':'Menganalisis…',
+    'an.result':'Output terkompresi','an.copy':'Salin','an.copied':'Tersalin','an.analyze':'Analisis dengan AI','an.analyzing':'Menganalisis…',
     'an.confidence':'Keyakinan','an.summary':'Ringkasan','an.provider':'provider',
     'set.title':'Pengaturan','set.subtitle':'API key & model per provider. Disimpan lokal di','set.subtitle2':'tidak pernah dikirim ke mana pun.',
     'set.active':'Provider Aktif','set.save':'Simpan Perubahan','set.saved':'✓ Tersimpan','set.saveFailed':'Gagal menyimpan: ',
@@ -412,7 +452,7 @@ async function renderSettings() {
     opts += `<option value="${CUSTOM}" ${isCustomModel||presets.length===0?'selected':''}>${t('set.customopt')}</option>`;
 
     const div = document.createElement('div');
-    div.className = 'rounded-xl border border-line bg-panel p-5';
+    div.className = 'card p-5';
     div.innerHTML = `
       <div class="flex items-center justify-between mb-4">
         <div class="font-semibold text-white text-[14px] capitalize">${name}</div>
@@ -566,7 +606,7 @@ function showReport(rep) {
 }
 
 function updateCharts(s) {
-  const grid = '#1a2332', tick = '#8492a6';
+  const grid = '#1a2332', tick = '#8a97ab';
   Chart.defaults.font.family = 'ui-monospace, monospace';
   if (barChart) barChart.destroy();
   barChart = new Chart(document.getElementById('chartBar'), {
@@ -581,7 +621,7 @@ function updateCharts(s) {
   donutChart = new Chart(document.getElementById('chartDonut'), {
     type: 'doughnut', data: { labels:[t('chart.noise'),t('chart.dupes'),t('chart.kept')],
       datasets:[{ data:[s.noise_lines_removed||0, s.duplicate_lines_collapsed||0, s.compressed_lines||0],
-        backgroundColor:['#ef4444','#f59e0b','#2dd4bf'], borderColor:'#111722', borderWidth:2 }] },
+        backgroundColor:['#ef4444','#f59e0b','#2dd4bf'], borderColor:'#111826', borderWidth:2 }] },
     options: { cutout:'62%', plugins:{ legend:{ position:'bottom', labels:{ color:tick, font:{size:11}, boxWidth:11, padding:12 } } } }
   });
 }
