@@ -57,18 +57,47 @@ def print_report(report: dict):
     print("=" * 54)
 
 
+def run_benchmark(directory, out_dir=None):
+    import bench  # noqa: E402
+    files = bench.collect_files(directory)
+    if not files:
+        print(f"  [!] No .log/.json/.txt files found in: {directory}")
+        sys.exit(1)
+    print(f"  Benchmarking {len(files)} file(s) in {directory}/ ...\n")
+    rows = bench.run_bench(files)
+    md = bench.format_markdown(rows)
+    print(md)
+    if out_dir:
+        os.makedirs(out_dir, exist_ok=True)
+        with open(os.path.join(out_dir, "benchmark.md"), "w", encoding="utf-8") as f:
+            f.write("# SLICE Benchmark\n\nReproduce with: `python main.py --bench --bench-out " + out_dir + "`\n\n" + md)
+        with open(os.path.join(out_dir, "benchmark.csv"), "w", encoding="utf-8") as f:
+            f.write(bench.format_csv(rows))
+        print(f"  Saved: {out_dir}/benchmark.md and {out_dir}/benchmark.csv")
+
+
 def main():
     print(BANNER)
 
     parser = argparse.ArgumentParser(description="Compress SIEM logs for token-efficient LLM analysis")
-    parser.add_argument("--input", "-i", required=True, help="Path to the log file (JSON or Syslog)")
+    parser.add_argument("--input", "-i", default=None, help="Path to the log file (JSON or Syslog)")
     parser.add_argument("--output", "-o", default=None, help="Save the compressed result to a file")
     parser.add_argument("--analyze", "-a", action="store_true", help="Send the result to an LLM for analysis")
     parser.add_argument("--provider", "-p", default=None,
                         help="Provider from config.yaml (default: the active provider)")
     parser.add_argument("--show-output", "-s", action="store_true", help="Print the compressed result")
+    parser.add_argument("--bench", action="store_true", help="Benchmark the pipeline over a folder of logs")
+    parser.add_argument("--bench-dir", default="samples", help="Folder to benchmark (default: samples)")
+    parser.add_argument("--bench-out", default=None, help="Folder to write benchmark.md/.csv into")
     args = parser.parse_args()
 
+    if args.bench:
+        run_benchmark(args.bench_dir, args.bench_out)
+        return
+
+    if not args.input:
+        print("  [!] Provide --input <file>, or use --bench to benchmark a folder.")
+        sys.exit(1)
     if not os.path.exists(args.input):
         print(f"  [!] File not found: {args.input}")
         sys.exit(1)

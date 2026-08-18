@@ -4,11 +4,12 @@ SLICE FastAPI backend. Serves the static UI + a REST API.
 All log processing runs locally; only the compressed result is sent to the LLM.
 """
 
+import json
 import os
 import sys
 
 from fastapi import FastAPI, UploadFile, File, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -219,6 +220,7 @@ def analyze(req: AnalyzeRequest):
             f"(most-repeated rows prioritized) were sent to the LLM. For a full analysis, "
             f"split the log into parts or raise max_context_tokens for this provider."
         )
+    llm_mod.annotate_trust(report)
 
     # Update history with the verdict result
     if req.history_id:
@@ -229,6 +231,61 @@ def analyze(req: AnalyzeRequest):
             "model": prov.get("model"),
         })
     return report
+
+
+def _sse(event: str, data: dict) -> str:
+    return f"event: {event}\ndata: {json.dumps(data)}\n\n"
+
+
+@app.post("/api/analyze_stream")
+def analyze_stream(req: AnalyzeRequest):
+    """Stream the LLM analysis as it is written (realtime), then a final report."""
+    cfg = cfg_mod.load_config()
+    prov_name = req.provider or cfg["active_provider"]
+    prov = cfg["providers"].get(prov_name)
+    if not prov:
+        raise HTTPException(status_code=400, detail=f"Provider '{prov_name}' does not exist.")
+
+    budget = int(prov.get("max_context_tokens", 8000) or 8000)
+    text, truncated = _truncate_to_budget(req.text, budget)
+    protected, findings = injection_guard.defend(text)
+    injection = {
+        "hits": len(findings),
+        "neutralized": len(findings) > 0,
+        "rules": sorted({f["rule"] for f in findings}),
+        "samples": [f["match"] for f in findings[:5]],
+    }
+
+    def gen():
+        buf = []
+        try:
+            for delta in llm_mod.analyze_stream(protected, prov):
+                buf.append(delta)
+                yield _sse("delta", {"text": delta})
+        except Exception as e:
+            yield _sse("error", {"detail": f"LLM error ({prov_name}): {e}"})
+            return
+
+        report = llm_mod.finalize_report("".join(buf))
+        report["provider"] = prov_name
+        report["model"] = prov.get("model")
+        report["injection"] = injection
+        llm_mod.annotate_trust(report)
+        if truncated:
+            report["note"] = (
+                f"The log was too large for the context window; only the top ~{budget:,} tokens "
+                f"(most-repeated rows prioritized) were sent to the LLM."
+            )
+        if req.history_id:
+            hist_mod.update_record(req.history_id, {
+                "verdict": report.get("verdict"),
+                "confidence": report.get("confidence"),
+                "mitre": report.get("mitre_technique"),
+                "model": prov.get("model"),
+            })
+        yield _sse("done", report)
+
+    return StreamingResponse(gen(), media_type="text/event-stream")
 
 
 @app.get("/api/history")

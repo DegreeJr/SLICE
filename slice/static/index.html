@@ -268,6 +268,7 @@
               </div>
             </div>
             <div id="r-injection" class="hidden mt-4 text-[12px] rounded-lg px-3 py-2.5 leading-relaxed border"></div>
+            <div id="r-trust" class="hidden mt-4 text-[12px] rounded-lg px-3 py-2.5 leading-relaxed border"></div>
             <div id="r-note" class="hidden mt-4 text-[11px] text-amber-400/90 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2 leading-relaxed"></div>
           </div>
         </div>
@@ -600,14 +601,72 @@ async function runAnalyze() {
   if (!prov || !prov._has_key) { nokey.classList.remove('hidden'); return; }
   nokey.classList.add('hidden');
   const btn = document.getElementById('btn-analyze');
-  btn.disabled = true; const old = btn.innerHTML; btn.innerHTML = '⏳ '+t('an.analyzing');
+  btn.disabled = true; const old = btn.innerHTML; btn.innerHTML = '⏳ ' + t('an.analyzing');
   try {
-    const r = await fetch('/api/analyze', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ text: LAST_COMPRESSED, history_id: LAST_HISTORY_ID }) });
-    if (!r.ok) throw new Error((await r.json()).detail);
-    showReport(await r.json());
-    loadHistory();
-  } catch (e) { alert(t('msg.analyzeFailed') + e.message); }
+    const streamed = await runAnalyzeStream();
+    if (!streamed) await runAnalyzeOnce();  // fallback if streaming unavailable
+  } catch (e) {
+    try { await runAnalyzeOnce(); }
+    catch (e2) { alert(t('msg.analyzeFailed') + e2.message); }
+  }
   btn.disabled = false; btn.innerHTML = old;
+}
+
+function parseSSE(block) {
+  let event = 'message', data = '';
+  block.split('\n').forEach(line => {
+    if (line.startsWith('event:')) event = line.slice(6).trim();
+    else if (line.startsWith('data:')) data += line.slice(5).trim();
+  });
+  if (!data) return null;
+  try { return { event, data: JSON.parse(data) }; } catch (e) { return null; }
+}
+
+async function runAnalyzeStream() {
+  const res = await fetch('/api/analyze_stream', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ text: LAST_COMPRESSED, history_id: LAST_HISTORY_ID }) });
+  if (!res.ok || !res.body) return false;
+
+  // Prime the report card for live output.
+  document.getElementById('report').classList.remove('hidden');
+  const v = document.getElementById('r-verdict');
+  v.textContent = '…';
+  v.className = 'px-3 py-1 rounded-md text-[11px] font-bold tracking-wide bg-line2 text-slate-300';
+  document.getElementById('r-summary').textContent = '';
+  document.getElementById('r-injection').classList.add('hidden');
+  document.getElementById('r-note').classList.add('hidden');
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let sseBuf = '', fullText = '', gotDone = false;
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    sseBuf += decoder.decode(value, { stream: true });
+    const events = sseBuf.split('\n\n');
+    sseBuf = events.pop();  // keep the incomplete tail for the next read
+    for (const evt of events) {
+      const parsed = parseSSE(evt);
+      if (!parsed) continue;
+      if (parsed.event === 'delta') {
+        fullText += parsed.data.text || '';
+        document.getElementById('r-summary').textContent = fullText.split('@@VERDICT@@')[0];
+      } else if (parsed.event === 'error') {
+        throw new Error(parsed.data.detail || 'stream error');
+      } else if (parsed.event === 'done') {
+        showReport(parsed.data);
+        gotDone = true;
+      }
+    }
+  }
+  loadHistory();
+  return gotDone;
+}
+
+async function runAnalyzeOnce() {
+  const r = await fetch('/api/analyze', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ text: LAST_COMPRESSED, history_id: LAST_HISTORY_ID }) });
+  if (!r.ok) throw new Error((await r.json()).detail);
+  showReport(await r.json());
+  loadHistory();
 }
 
 function showReport(rep) {
@@ -634,6 +693,12 @@ function showReport(rep) {
     inj.innerHTML = '🛡 ' + t('an.injclean');
     inj.classList.remove('hidden');
   } else { inj.classList.add('hidden'); }
+  const tr = document.getElementById('r-trust');
+  if (rep.trust && rep.trust.low_confidence) {
+    tr.className = 'mt-4 text-[12px] rounded-lg px-3 py-2.5 leading-relaxed border bg-amber-500/10 border-amber-500/25 text-amber-400/90';
+    tr.textContent = '⚠ ' + (rep.trust.advice || 'Low model confidence — recommend human review.');
+    tr.classList.remove('hidden');
+  } else { tr.classList.add('hidden'); }
   const note = document.getElementById('r-note');
   if (rep.note) { note.textContent = '⚠ ' + rep.note; note.classList.remove('hidden'); }
   else { note.classList.add('hidden'); }

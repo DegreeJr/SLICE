@@ -71,15 +71,24 @@ def _deep_merge(base: dict, override: dict) -> dict:
 
 
 def load_config() -> dict:
-    """Read config.yaml; fall back to defaults if missing."""
+    """Read config.yaml; fall back to defaults if missing or malformed."""
+    cfg = deepcopy(DEFAULT_CONFIG)
     if _HAS_YAML and os.path.exists(CONFIG_PATH):
         try:
             with open(CONFIG_PATH, "r", encoding="utf-8") as f:
                 user_cfg = yaml.safe_load(f) or {}
-            return _deep_merge(DEFAULT_CONFIG, user_cfg)
+            if isinstance(user_cfg, dict):
+                cfg = _deep_merge(DEFAULT_CONFIG, user_cfg)
         except Exception:
-            pass
-    return deepcopy(DEFAULT_CONFIG)
+            cfg = deepcopy(DEFAULT_CONFIG)
+
+    # Guard against a broken config blanking the UI: providers must be a
+    # non-empty dict, and the active provider must exist.
+    if not isinstance(cfg.get("providers"), dict) or not cfg["providers"]:
+        cfg["providers"] = deepcopy(DEFAULT_CONFIG["providers"])
+    if cfg.get("active_provider") not in cfg["providers"]:
+        cfg["active_provider"] = next(iter(cfg["providers"]))
+    return cfg
 
 
 def save_config(cfg: dict) -> None:

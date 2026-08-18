@@ -142,7 +142,9 @@ docker compose up -d --build   # rebuild after pulling new code
    OpenAI-compatible endpoint), pick a model, set the active provider.
 2. **Analyze** → drop a log file (`.log`, `.json`, `.txt`).
 3. See the compression stats and charts, then click **Analyze with AI** for a threat
-   report (verdict, confidence, MITRE ATT&CK, summary).
+   report (verdict, confidence, MITRE ATT&CK, summary). The analysis streams in
+   real time as the model writes it, and falls back to a single request if the
+   provider does not support streaming.
 4. **Dashboard** keeps a persistent history of every run (saved locally).
 
 The UI is available in **English and Indonesian** (toggle in the sidebar).
@@ -331,6 +333,37 @@ SLICE defends the analysis step with two local, deterministic layers
 Detected attempts are counted at compression time and reported after analysis
 (`report.injection` in the API, and a badge in the UI). To see it, open the
 **Analyze** page and run the bundled **Prompt injection (defense demo)** sample.
+
+## Benchmark (reproducible)
+
+Verify the compression numbers yourself, no screenshots required. One command runs
+the pipeline over the bundled sample logs and prints a table:
+
+```bash
+python main.py --bench                    # print the table
+python main.py --bench --bench-out metrics   # also write metrics/benchmark.{md,csv}
+```
+
+A committed sample (`samples/demo_ssh_bruteforce_large.log`, 12,001 lines) reproduces
+the headline compression locally:
+
+| File | Lines in → out | Tokens in → out | Reduction | Injection hits |
+| --- | ---: | ---: | ---: | ---: |
+| demo_ssh_bruteforce_large.log | 12,001 → 5 | 279,876 → 94 | −99.97% | 0 |
+| demo_ssh_bruteforce.log | 20 → 9 | 481 → 178 | −62.99% | 0 |
+| demo_windows_events.json | 10 → 6 | 459 → 163 | −64.49% | 0 |
+| demo_prompt_injection.log | 11 → 5 | 269 → 108 | −59.85% | 5 |
+
+Numbers are measured with tiktoken and depend on the data; highly repetitive logs
+compress far more than diverse ones. The `injection hits` column shows how many
+prompt-injection patterns the guard found in each sample before analysis.
+
+## Verdict trust (not blind trust in the LLM)
+
+The detecting model is an external LLM, so SLICE does not trust its output blindly.
+Every verdict is annotated: an `UNKNOWN` verdict or a confidence below a threshold
+(default 0.5) is flagged as low-confidence and marked for human review, both in the
+API response (`report.trust`) and in the dashboard.
 
 ## Supported Log Formats
 
