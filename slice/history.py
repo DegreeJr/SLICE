@@ -23,8 +23,10 @@ def _load_raw() -> list:
                 data = json.load(f)
             if isinstance(data, list):
                 return data
-        except Exception:
-            pass
+        except (OSError, json.JSONDecodeError):
+            # Corrupt or unreadable history file: start with an empty history
+            # rather than crashing the app.
+            return []
     return []
 
 

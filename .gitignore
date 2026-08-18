@@ -1,3 +1,6 @@
+# === Presentation aids (not part of the product) ===
+DEMO_SCRIPT.md
+
 # === Secrets & local state (NEVER commit) ===
 # config.yaml contains API keys
 config.yaml

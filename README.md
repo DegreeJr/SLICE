@@ -406,16 +406,53 @@ The techniques here are grounded in established log-analysis research:
 ```
 slice/            # web app (FastAPI backend + zero-build UI)
   server.py       # REST API + static UI
-  llm.py          # multi-provider LLM client
+  llm.py          # multi-provider LLM client (blocking + streaming, JSON-hardened)
   config.py       # local config (config.yaml)
   history.py      # persistent analysis history (history.json)
-  static/         # single-file HTML/JS dashboard (bilingual)
+  static/         # single-file HTML/JS dashboard (bilingual EN/ID)
 src/              # the compression pipeline (importable, framework-free)
-samples/          # small demo logs safe to commit
+  pipeline.py     # orchestrates the 6 stages
+  normalizer.py · noise_filter.py · templatizer.py · deduplicator.py
+  aggregator.py · compressor.py · token_counter.py
+  injection_guard.py  # prompt-injection defense (neutralize + spotlight)
+  bench.py            # reproducible compression benchmark
+samples/          # small synthetic demo logs (safe to commit; no third-party data)
+metrics/          # committed benchmark results (benchmark.md/.csv)
 docs/             # design docs & ADRs
-main.py           # command-line interface
-tests/            # unit tests for the pipeline
+scripts/          # security scan and helpers
+main.py           # command-line interface (compress, analyze, --bench)
+tests/            # unit tests (pipeline, injection guard, llm, bench)
 ```
+
+---
+
+## Known Limitations
+
+Stated plainly so the numbers are not misread:
+
+- **Compression depends on the data.** Highly repetitive logs (SSH brute force)
+  compress ~99%; diverse logs (mixed Sysmon/Windows events) compress far less
+  (~90% in our tests). Unique, non-repeating records barely compress by design.
+- **The threat verdict comes from an external LLM**, not a model we trained. It
+  can be wrong. Low-confidence or `UNKNOWN` verdicts are flagged for human review
+  (`report.trust`), but SLICE does not replace an analyst.
+- **The injection guard is pattern-based.** It neutralizes known injection phrases
+  and spotlights the payload as untrusted data, which raises the cost of an attack
+  but does not guarantee immunity against novel or obfuscated (e.g. base64) payloads.
+- **Aggregation trades detail for triage.** It replaces value lists with a
+  distinct-count, which is great for triage and weaker for deep forensics.
+
+## Credits
+
+- Open-source libraries: FastAPI, Uvicorn, Pydantic, tiktoken, and the official
+  OpenAI / Anthropic / Google GenAI client libraries (see `requirements.txt`).
+  Dashboard uses Tailwind CSS and Chart.js via CDN.
+- Method references: Drain (He et al., ICWS 2017) for templating; the spotlighting
+  idea for untrusted-data handling (Microsoft, 2024).
+- Bundled sample logs under `samples/` are **synthetic**, written for this project
+  using documentation IP ranges (RFC 5737). Public datasets such as SecRepo,
+  Loghub, and OTRF Security-Datasets are useful to test with, but none of their
+  data is redistributed in this repository.
 
 ---
 

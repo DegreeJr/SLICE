@@ -211,9 +211,12 @@
         </div>
 
         <div id="analyze-result" class="hidden mt-7 space-y-6 fade">
-          <div class="flex items-center gap-2.5">
-            <span class="step-num">2</span>
-            <span class="text-[12px] font-semibold text-slate-300 uppercase tracking-wide" data-i18n="an.step2">Compression result</span>
+          <div class="flex items-center justify-between gap-2.5">
+            <div class="flex items-center gap-2.5">
+              <span class="step-num">2</span>
+              <span class="text-[12px] font-semibold text-slate-300 uppercase tracking-wide" data-i18n="an.step2">Compression result</span>
+            </div>
+            <button onclick="resetAnalyze()" class="text-[11px] text-mut2 hover:text-red-400 transition inline-flex items-center gap-1.5" data-i18n="an.reset">Reset</button>
           </div>
           <div class="grid grid-cols-2 md:grid-cols-4 gap-3.5">
             <div class="card p-4"><div class="text-[11px] text-mut2 uppercase tracking-wide" data-i18n="an.orig">Original tokens</div><div id="a-tok-orig" class="stat-num text-[21px] font-bold text-slate-300 mt-1 font-mono">–</div></div>
@@ -318,7 +321,7 @@ const I18N = {
     'an.orig':'Original tokens','an.comp':'Compressed','an.reduction':'Reduction','an.saved':'Est. saved',
     'an.result':'Compressed output','an.copy':'Copy','an.copied':'Copied','an.analyze':'Analyze with AI','an.analyzing':'Analyzing…',
     'an.confidence':'Confidence','an.summary':'Summary','an.provider':'provider',
-    'an.trysample':'Or try a sample','an.nokey':'Set an API key in Settings to run AI analysis.','an.gosettings':'Open Settings →',
+    'an.trysample':'Or try a sample','an.nokey':'Set an API key in Settings to run AI analysis.','an.gosettings':'Open Settings →','an.reset':'✕ Reset',
     'an.injtitle':'Prompt injection defense','an.injneutralized':'injection pattern(s) found in the logs and neutralized before analysis.','an.injclean':'No prompt injection detected in the logs.','an.injfound':'possible injection pattern(s) in this log',
     'set.title':'Settings','set.subtitle':'API key & model per provider. Stored locally in','set.subtitle2':'it never leaves the machine.',
     'set.active':'Active Provider','set.save':'Save Changes','set.saved':'✓ Saved','set.saveFailed':'Save failed: ',
@@ -345,7 +348,7 @@ const I18N = {
     'an.orig':'Token asli','an.comp':'Terkompresi','an.reduction':'Reduksi','an.saved':'Est. hemat',
     'an.result':'Output terkompresi','an.copy':'Salin','an.copied':'Tersalin','an.analyze':'Analisis dengan AI','an.analyzing':'Menganalisis…',
     'an.confidence':'Keyakinan','an.summary':'Ringkasan','an.provider':'provider',
-    'an.trysample':'Atau coba sampel','an.nokey':'Atur API key di Pengaturan untuk menjalankan analisis AI.','an.gosettings':'Buka Pengaturan →',
+    'an.trysample':'Atau coba sampel','an.nokey':'Atur API key di Pengaturan untuk menjalankan analisis AI.','an.gosettings':'Buka Pengaturan →','an.reset':'✕ Reset',
     'an.injtitle':'Pertahanan prompt injection','an.injneutralized':'pola injeksi ditemukan di log dan dinetralkan sebelum analisis.','an.injclean':'Tidak ada prompt injection terdeteksi di log.','an.injfound':'kemungkinan pola injeksi di log ini',
     'set.title':'Pengaturan','set.subtitle':'API key & model per provider. Disimpan lokal di','set.subtitle2':'tidak pernah dikirim ke mana pun.',
     'set.active':'Provider Aktif','set.save':'Simpan Perubahan','set.saved':'✓ Tersimpan','set.saveFailed':'Gagal menyimpan: ',
@@ -672,6 +675,16 @@ async function runAnalyzeStream() {
   }
   loadHistory();
   return gotDone;
+}
+
+function resetAnalyze() {
+  LAST_STATS = null; LAST_COMPRESSED = ''; LAST_HISTORY_ID = null;
+  document.getElementById('analyze-result').classList.add('hidden');
+  document.getElementById('report').classList.add('hidden');
+  const nokey = document.getElementById('analyze-nokey'); if (nokey) nokey.classList.add('hidden');
+  const fi = document.getElementById('fileInput'); if (fi) fi.value = '';
+  restoreDrop();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 async function runAnalyzeOnce() {

@@ -7,6 +7,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY src/ ./src/
 COPY slice/ ./slice/
+COPY samples/ ./samples/
+COPY main.py ./main.py
 
 # Persist config.yaml and history.json in /data (mounted from the host)
 ENV SLICE_CONFIG=/data/config.yaml \
