@@ -153,6 +153,81 @@ def finalize_report(full: str) -> dict:
 
 
 # --------------------------------------------------------------------------- #
+# Chunking: split an oversized payload and merge the per-chunk verdicts
+# --------------------------------------------------------------------------- #
+MAX_CHUNKS = 8  # cap the number of LLM calls per analysis to bound cost/latency
+_VERDICT_SEVERITY = {"UNKNOWN": 0, "BENIGN": 1, "SUSPICIOUS": 2, "MALICIOUS": 3}
+
+
+def split_payload(text: str, max_tokens: int):
+    """Split compressed text into chunks that each fit the token budget.
+
+    The FIELDS header (if present) is repeated on every chunk so each is
+    self-describing. Rows are never split; a single over-long row gets its own
+    chunk. Uses ~4 chars/token as a budget estimate. Returns >=1 chunk.
+    """
+    budget_chars = max(1000, int(max_tokens or 8000)) * 4
+    lines = text.split("\n") if text else []
+    if not lines:
+        return [text]
+
+    header = lines[0] if lines[0].startswith("FIELDS:") else ""
+    rows = lines[1:] if header else lines
+    prefix = (header + "\n") if header else ""
+
+    chunks, current, current_len = [], [], len(prefix)
+    for row in rows:
+        row_len = len(row) + 1
+        if current and current_len + row_len > budget_chars:
+            chunks.append(prefix + "\n".join(current))
+            current, current_len = [row], len(prefix) + row_len
+        else:
+            current.append(row)
+            current_len += row_len
+    if current:
+        chunks.append(prefix + "\n".join(current))
+    return chunks or [text]
+
+
+def merge_reports(reports: list) -> dict:
+    """Merge per-chunk reports into one: worst-case verdict, union of details."""
+    if not reports:
+        return _normalize_report({})
+
+    def sev(r):
+        return _VERDICT_SEVERITY.get(str(r.get("verdict", "")).upper(), 0)
+
+    verdict = str(max(reports, key=sev).get("verdict", "UNKNOWN")).upper()
+    if verdict not in VALID_VERDICTS:
+        verdict = "UNKNOWN"
+
+    tops = [r for r in reports if str(r.get("verdict", "")).upper() == verdict]
+    try:
+        confidence = max(float(r.get("confidence", 0) or 0) for r in tops)
+    except (ValueError, TypeError):
+        confidence = 0.0
+
+    techniques = []
+    for r in reports:
+        t = str(r.get("mitre_technique") or "").strip()
+        if t and t.lower() != "none" and t not in techniques:
+            techniques.append(t)
+
+    summaries = []
+    for i, r in enumerate(reports, 1):
+        s = str(r.get("summary") or "").strip()
+        if s and s != "-":
+            summaries.append(f"[Part {i}] {s}")
+
+    return {
+        "verdict": verdict,
+        "confidence": max(0.0, min(1.0, confidence)),
+        "mitre_technique": ", ".join(techniques) if techniques else "None",
+        "summary": " ".join(summaries) if summaries else "-",
+    }
+
+
+# --------------------------------------------------------------------------- #
 # Blocking analysis
 # --------------------------------------------------------------------------- #
 def analyze(compressed_text: str, provider: dict) -> dict:

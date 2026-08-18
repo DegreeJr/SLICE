@@ -144,7 +144,9 @@ docker compose up -d --build   # rebuild after pulling new code
 3. See the compression stats and charts, then click **Analyze with AI** for a threat
    report (verdict, confidence, MITRE ATT&CK, summary). The analysis streams in
    real time as the model writes it, and falls back to a single request if the
-   provider does not support streaming.
+   provider does not support streaming. If a compressed log is still larger than
+   the model's context budget, SLICE analyzes it in chunks and merges the verdicts
+   (worst-case verdict, union of MITRE techniques) instead of dropping rows.
 4. **Dashboard** keeps a persistent history of every run (saved locally).
 
 The UI is available in **English and Indonesian** (toggle in the sidebar).

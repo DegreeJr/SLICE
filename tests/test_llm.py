@@ -108,3 +108,61 @@ def test_analyze_stream_endpoint(monkeypatch):
     assert "event: delta" in body
     assert "event: done" in body
     assert '"verdict": "MALICIOUS"' in body
+
+
+# ---------- chunking: split_payload / merge_reports ----------
+def test_split_payload_single_when_small():
+    assert len(llm.split_payload("FIELDS: a|b\n1|x", 8000)) == 1
+
+
+def test_split_payload_multiple_and_preserves_rows():
+    header = "FIELDS: _count|_template"
+    rows = [f"{i}|row-data-value-{i:04d}-paddingxxxxxxxxxxxxxx" for i in range(400)]
+    text = header + "\n" + "\n".join(rows)
+    chunks = llm.split_payload(text, 1000)  # ~4000-char budget forces splitting
+    assert len(chunks) > 1
+    assert all(c.startswith(header) for c in chunks)  # header repeated on each chunk
+    recovered = []
+    for c in chunks:
+        recovered.extend(c.split("\n")[1:])
+    assert recovered == rows  # every row preserved, in order
+
+
+def test_merge_reports_worst_case_verdict():
+    r = llm.merge_reports([
+        {"verdict": "BENIGN", "confidence": 0.9, "mitre_technique": "None", "summary": "clean"},
+        {"verdict": "MALICIOUS", "confidence": 0.8, "mitre_technique": "T1110", "summary": "brute force"},
+    ])
+    assert r["verdict"] == "MALICIOUS"        # worst-case wins
+    assert r["confidence"] == 0.8             # from the malicious chunk
+    assert "T1110" in r["mitre_technique"]
+    assert "brute force" in r["summary"]
+
+
+def test_merge_reports_empty_is_unknown():
+    assert llm.merge_reports([])["verdict"] == "UNKNOWN"
+
+
+def test_analyze_endpoint_chunks_large_log(monkeypatch):
+    from fastapi.testclient import TestClient
+    from slice.server import app
+
+    calls = {"n": 0}
+
+    def fake_analyze(text, provider):
+        calls["n"] += 1
+        verdict = "MALICIOUS" if calls["n"] == 2 else "BENIGN"
+        return {"verdict": verdict, "confidence": 0.7, "mitre_technique": "T1059", "summary": f"part {calls['n']}"}
+
+    monkeypatch.setattr(llm, "analyze", fake_analyze)
+
+    header = "FIELDS: _count|_template"
+    rows = [f"{i}|padding-row-data-{i:05d}-" + ("x" * 40) for i in range(1000)]
+    big = header + "\n" + "\n".join(rows)  # ~64k chars > groq 12k-token budget
+
+    client = TestClient(app)
+    r = client.post("/api/analyze", json={"text": big, "provider": "groq"})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["chunks"] > 1                 # was split into multiple chunks
+    assert body["verdict"] == "MALICIOUS"     # merged worst-case

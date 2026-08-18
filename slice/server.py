@@ -196,30 +196,37 @@ def analyze(req: AnalyzeRequest):
         raise HTTPException(status_code=400, detail=f"Provider '{prov_name}' does not exist.")
 
     budget = int(prov.get("max_context_tokens", 8000) or 8000)
-    text, truncated = _truncate_to_budget(req.text, budget)
 
-    # Injection defense: neutralize injection phrases and spotlight-wrap the
-    # payload as untrusted data before it reaches the LLM.
-    protected, findings = injection_guard.defend(text)
+    # Chunking: if the payload exceeds the budget, split it and analyze each part
+    # instead of truncating, then merge the verdicts. Capped to bound cost.
+    chunks = llm_mod.split_payload(req.text, budget)
+    used = chunks[:llm_mod.MAX_CHUNKS]
 
+    reports, all_findings = [], []
     try:
-        report = llm_mod.analyze(protected, prov)
+        for chunk in used:
+            protected, findings = injection_guard.defend(chunk)
+            all_findings.extend(findings)
+            reports.append(llm_mod.analyze(protected, prov))
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"LLM error ({prov_name}): {e}")
+
+    report = reports[0] if len(reports) == 1 else llm_mod.merge_reports(reports)
     report["provider"] = prov_name
     report["model"] = prov.get("model")
     report["injection"] = {
-        "hits": len(findings),
-        "neutralized": len(findings) > 0,
-        "rules": sorted({f["rule"] for f in findings}),
-        "samples": [f["match"] for f in findings[:5]],
+        "hits": len(all_findings),
+        "neutralized": len(all_findings) > 0,
+        "rules": sorted({f["rule"] for f in all_findings}),
+        "samples": [f["match"] for f in all_findings[:5]],
     }
-    if truncated:
-        report["note"] = (
-            f"The log was too large for the context window; only the top ~{budget:,} tokens "
-            f"(most-repeated rows prioritized) were sent to the LLM. For a full analysis, "
-            f"split the log into parts or raise max_context_tokens for this provider."
-        )
+    report["chunks"] = len(used)
+    if len(chunks) > 1:
+        note = f"Large log analyzed in {len(used)} chunk(s) to avoid dropping data."
+        if len(chunks) > len(used):
+            note += (f" Only the first {len(used)} of {len(chunks)} chunks were analyzed "
+                     f"to bound cost; raise max_context_tokens to cover more per call.")
+        report["note"] = note
     llm_mod.annotate_trust(report)
 
     # Update history with the verdict result
@@ -247,16 +254,59 @@ def analyze_stream(req: AnalyzeRequest):
         raise HTTPException(status_code=400, detail=f"Provider '{prov_name}' does not exist.")
 
     budget = int(prov.get("max_context_tokens", 8000) or 8000)
-    text, truncated = _truncate_to_budget(req.text, budget)
-    protected, findings = injection_guard.defend(text)
-    injection = {
-        "hits": len(findings),
-        "neutralized": len(findings) > 0,
-        "rules": sorted({f["rule"] for f in findings}),
-        "samples": [f["match"] for f in findings[:5]],
-    }
+    chunks = llm_mod.split_payload(req.text, budget)
+
+    def _update_history(report):
+        if req.history_id:
+            hist_mod.update_record(req.history_id, {
+                "verdict": report.get("verdict"),
+                "confidence": report.get("confidence"),
+                "mitre": report.get("mitre_technique"),
+                "model": prov.get("model"),
+            })
 
     def gen():
+        # Large log: analyze in chunks (progress messages instead of a token stream).
+        if len(chunks) > 1:
+            used = chunks[:llm_mod.MAX_CHUNKS]
+            reports, all_findings = [], []
+            yield _sse("delta", {"text": f"Large log — analyzing in {len(used)} chunks...\n"})
+            try:
+                for i, chunk in enumerate(used, 1):
+                    protected, findings = injection_guard.defend(chunk)
+                    all_findings.extend(findings)
+                    reports.append(llm_mod.analyze(protected, prov))
+                    yield _sse("delta", {"text": f"Analyzed chunk {i}/{len(used)}.\n"})
+            except Exception as e:
+                yield _sse("error", {"detail": f"LLM error ({prov_name}): {e}"})
+                return
+            report = llm_mod.merge_reports(reports)
+            report["provider"] = prov_name
+            report["model"] = prov.get("model")
+            report["injection"] = {
+                "hits": len(all_findings),
+                "neutralized": len(all_findings) > 0,
+                "rules": sorted({f["rule"] for f in all_findings}),
+                "samples": [f["match"] for f in all_findings[:5]],
+            }
+            report["chunks"] = len(used)
+            note = f"Large log analyzed in {len(used)} chunk(s) to avoid dropping data."
+            if len(chunks) > len(used):
+                note += f" Only the first {len(used)} of {len(chunks)} chunks were analyzed to bound cost."
+            report["note"] = note
+            llm_mod.annotate_trust(report)
+            _update_history(report)
+            yield _sse("done", report)
+            return
+
+        # Fits in one call: stream the analysis live.
+        protected, findings = injection_guard.defend(chunks[0])
+        injection = {
+            "hits": len(findings),
+            "neutralized": len(findings) > 0,
+            "rules": sorted({f["rule"] for f in findings}),
+            "samples": [f["match"] for f in findings[:5]],
+        }
         buf = []
         try:
             for delta in llm_mod.analyze_stream(protected, prov):
@@ -270,19 +320,9 @@ def analyze_stream(req: AnalyzeRequest):
         report["provider"] = prov_name
         report["model"] = prov.get("model")
         report["injection"] = injection
+        report["chunks"] = 1
         llm_mod.annotate_trust(report)
-        if truncated:
-            report["note"] = (
-                f"The log was too large for the context window; only the top ~{budget:,} tokens "
-                f"(most-repeated rows prioritized) were sent to the LLM."
-            )
-        if req.history_id:
-            hist_mod.update_record(req.history_id, {
-                "verdict": report.get("verdict"),
-                "confidence": report.get("confidence"),
-                "mitre": report.get("mitre_technique"),
-                "model": prov.get("model"),
-            })
+        _update_history(report)
         yield _sse("done", report)
 
     return StreamingResponse(gen(), media_type="text/event-stream")
