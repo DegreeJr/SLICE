@@ -26,6 +26,7 @@ DEFAULT_CONFIG = {
             "model": "llama-3.3-70b-versatile",
             "kind": "openai",
             "price_per_1m": 0.59,
+            "max_context_tokens": 12000,
         },
         "openai": {
             "api_key": "",
@@ -33,6 +34,7 @@ DEFAULT_CONFIG = {
             "model": "gpt-4o-mini",
             "kind": "openai",
             "price_per_1m": 0.15,
+            "max_context_tokens": 100000,
         },
         "anthropic": {
             "api_key": "",
@@ -40,6 +42,7 @@ DEFAULT_CONFIG = {
             "model": "claude-haiku-4-5-20251001",
             "kind": "anthropic",
             "price_per_1m": 1.00,
+            "max_context_tokens": 100000,
         },
         "gemini": {
             "api_key": "",
@@ -47,6 +50,7 @@ DEFAULT_CONFIG = {
             "model": "gemini-2.0-flash",
             "kind": "gemini",
             "price_per_1m": 0.10,
+            "max_context_tokens": 200000,
         },
         "custom": {
             "api_key": "",
@@ -54,6 +58,7 @@ DEFAULT_CONFIG = {
             "model": "",
             "kind": "openai",
             "price_per_1m": 0.50,
+            "max_context_tokens": 60000,
         },
     },
 }

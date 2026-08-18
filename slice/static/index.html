@@ -322,7 +322,7 @@ const I18N = {
     'an.injtitle':'Prompt injection defense','an.injneutralized':'injection pattern(s) found in the logs and neutralized before analysis.','an.injclean':'No prompt injection detected in the logs.','an.injfound':'possible injection pattern(s) in this log',
     'set.title':'Settings','set.subtitle':'API key & model per provider. Stored locally in','set.subtitle2':'it never leaves the machine.',
     'set.active':'Active Provider','set.save':'Save Changes','set.saved':'✓ Saved','set.saveFailed':'Save failed: ',
-    'set.apikey':'API Key','set.model':'Model','set.baseurl':'Base URL','set.price':'Price / 1M tokens (USD, est.)',
+    'set.apikey':'API Key','set.model':'Model','set.baseurl':'Base URL','set.price':'Price / 1M tokens (USD, est.)','set.ctx':'Max context tokens (LLM)',
     'set.keysaved':'● key saved','set.nokey':'○ no key','set.enterkey':'enter API key…','set.custommodel':'custom model name','set.customopt':'Custom…',
     'chart.before':'Before','chart.after':'After','chart.tokens':'Tokens','chart.lines':'Lines',
     'chart.noise':'Noise','chart.dupes':'Duplicates','chart.kept':'Kept',
@@ -349,7 +349,7 @@ const I18N = {
     'an.injtitle':'Pertahanan prompt injection','an.injneutralized':'pola injeksi ditemukan di log dan dinetralkan sebelum analisis.','an.injclean':'Tidak ada prompt injection terdeteksi di log.','an.injfound':'kemungkinan pola injeksi di log ini',
     'set.title':'Pengaturan','set.subtitle':'API key & model per provider. Disimpan lokal di','set.subtitle2':'tidak pernah dikirim ke mana pun.',
     'set.active':'Provider Aktif','set.save':'Simpan Perubahan','set.saved':'✓ Tersimpan','set.saveFailed':'Gagal menyimpan: ',
-    'set.apikey':'API Key','set.model':'Model','set.baseurl':'Base URL','set.price':'Harga / 1M token (USD, est.)',
+    'set.apikey':'API Key','set.model':'Model','set.baseurl':'Base URL','set.price':'Harga / 1M token (USD, est.)','set.ctx':'Maks token konteks (LLM)',
     'set.keysaved':'● key tersimpan','set.nokey':'○ belum ada key','set.enterkey':'masukkan API key…','set.custommodel':'nama model custom','set.customopt':'Custom…',
     'chart.before':'Sebelum','chart.after':'Sesudah','chart.tokens':'Token','chart.lines':'Baris',
     'chart.noise':'Noise','chart.dupes':'Duplikat','chart.kept':'Disimpan',
@@ -389,6 +389,12 @@ function nav(page) {
   document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
   document.getElementById('nav-' + page).classList.add('active');
   if (page === 'settings') renderSettings();
+  if (page === 'analyze') updateActiveProviderLabel();
+}
+
+function updateActiveProviderLabel() {
+  const el = document.getElementById('analyze-provider');
+  if (el && CONFIG && CONFIG.active_provider) el.textContent = t('an.provider') + ': ' + CONFIG.active_provider;
 }
 
 async function loadConfig() {
@@ -492,6 +498,10 @@ async function renderSettings() {
           <label class="text-[11px] text-mut2 uppercase tracking-wide">${t('set.price')}</label>
           <input data-p="${name}" data-f="price_per_1m" type="number" step="0.01" min="0" value="${p.price_per_1m ?? 0}" class="w-full mt-1.5 bg-ink border border-line2 rounded-lg px-3 py-2 text-[13px] font-mono focus:border-teal focus:outline-none" />
         </div>
+        <div>
+          <label class="text-[11px] text-mut2 uppercase tracking-wide">${t('set.ctx')}</label>
+          <input data-p="${name}" data-f="max_context_tokens" type="number" step="1000" min="1000" value="${p.max_context_tokens ?? 8000}" class="w-full mt-1.5 bg-ink border border-line2 rounded-lg px-3 py-2 text-[13px] font-mono focus:border-teal focus:outline-none" />
+        </div>
       </div>`;
     list.appendChild(div);
   }
@@ -519,6 +529,7 @@ async function saveSettings() {
     if (f === 'model-custom') return;
     if (f === 'base_url') { put(p,'base_url',v); return; }
     if (f === 'price_per_1m') { put(p,'price_per_1m', parseFloat(v)||0); return; }
+    if (f === 'max_context_tokens') { put(p,'max_context_tokens', parseInt(v)||8000); return; }
   });
   const body = { active_provider: document.getElementById('active-provider').value, providers };
   const st = document.getElementById('save-status');
@@ -533,6 +544,7 @@ async function saveSettings() {
     st.className = 'text-[12px] text-teal font-medium';
     st.textContent = t('set.saved'); setTimeout(()=>st.textContent='', 2500);
     renderSettings();
+    updateActiveProviderLabel();
   } catch (e) {
     st.className = 'text-[12px] text-red-400 font-medium';
     st.textContent = t('set.saveFailed') + e.message;
@@ -583,7 +595,7 @@ function showResult(data) {
   document.getElementById('a-tok-pct').textContent = '−' + s.token_reduction_pct + '%';
   document.getElementById('a-cost').textContent = '$' + (s.cost_saved || 0).toFixed(4);
   document.getElementById('a-compressed').textContent = data.compressed;
-  document.getElementById('analyze-provider').textContent = t('an.provider') + ': ' + s.active_provider;
+  document.getElementById('analyze-provider').textContent = t('an.provider') + ': ' + ((CONFIG && CONFIG.active_provider) || s.active_provider);
   const ai = document.getElementById('a-injection');
   if (s.injection_hits > 0) { ai.textContent = '⚠ ' + s.injection_hits + ' ' + t('an.injfound'); ai.classList.remove('hidden'); }
   else { ai.classList.add('hidden'); }
