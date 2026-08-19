@@ -14,7 +14,7 @@ from templatizer import make_template, apply_templates
 from deduplicator import deduplicate, make_signature
 from aggregator import aggregate_templates
 from compressor import compress_to_columnar
-from pipeline import run_pipeline
+from pipeline import run_pipeline, iter_pipeline, STAGES
 
 
 # ---------- normalizer ----------
@@ -122,3 +122,21 @@ def test_full_pipeline_json_roundtrip():
     compressed, stats = run_pipeline(raw)
     assert "FIELDS:" in compressed
     assert stats["duplicate_lines_collapsed"] > 0
+
+
+# ---------- staged progress ----------
+def test_iter_pipeline_emits_all_stages_then_done():
+    raw = "\n".join(
+        f"Nov 30 06:00:{i:02d} host sshd[{1000+i}]: Failed password for admin from 203.0.113.5 port {i} ssh2"
+        for i in range(40)
+    )
+    events = list(iter_pipeline(raw))
+    stages = [e["stage"] for e in events if "stage" in e]
+    assert stages == [s for s, _ in STAGES]          # all six stages, in order
+    done = [e for e in events if e.get("done")]
+    assert len(done) == 1
+    assert "compressed" in done[0] and "stats" in done[0]
+    # run_pipeline returns exactly the streamed final result
+    comp, stats = run_pipeline(raw)
+    assert comp == done[0]["compressed"]
+    assert stats["compressed_lines"] == done[0]["stats"]["compressed_lines"]

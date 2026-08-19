@@ -569,17 +569,80 @@ function bindDrop() {
 }
 
 async function upload(file) {
-  const drop = document.getElementById('drop');
-  drop.innerHTML = '<div class="text-mut text-[13px] py-1">⏳ '+t('an.processing')+' <span class="font-mono text-slate-300">'+file.name+'</span>…</div>';
   try {
-    const fd = new FormData(); fd.append('file', file);
-    const r = await fetch('/api/compress', { method:'POST', body: fd });
-    if (!r.ok) throw new Error((await r.json()).detail);
-    const data = await r.json();
-    LAST_STATS = data.stats; LAST_COMPRESSED = data.compressed; LAST_HISTORY_ID = data.history_id;
-    showResult(data); loadHistory();
-  } catch (e) { alert(t('msg.failed') + e.message); }
+    const streamed = await uploadStream(file);
+    if (!streamed) await uploadOnce(file);  // fallback if streaming unavailable
+  } catch (e) {
+    try { await uploadOnce(file); }
+    catch (e2) { alert(t('msg.failed') + e2.message); }
+  }
   restoreDrop();
+}
+
+async function uploadOnce(file) {
+  const drop = document.getElementById('drop');
+  drop.innerHTML = '<div class="text-mut text-[13px] py-1">⏳ ' + t('an.processing') + ' <span class="font-mono text-slate-300">' + file.name + '</span>…</div>';
+  const fd = new FormData(); fd.append('file', file);
+  const r = await fetch('/api/compress', { method:'POST', body: fd });
+  if (!r.ok) throw new Error((await r.json()).detail);
+  const data = await r.json();
+  LAST_STATS = data.stats; LAST_COMPRESSED = data.compressed; LAST_HISTORY_ID = data.history_id;
+  showResult(data); loadHistory();
+}
+
+async function uploadStream(file) {
+  const drop = document.getElementById('drop');
+  const fd = new FormData(); fd.append('file', file);
+  const res = await fetch('/api/compress_stream', { method:'POST', body: fd });
+  if (!res.ok || !res.body) return false;
+
+  drop.innerHTML = `<div class="text-left">
+      <div class="text-[12px] text-slate-300 mb-3 flex items-center gap-2">
+        <span class="inline-block w-3.5 h-3.5 border-2 border-teal border-t-transparent rounded-full animate-spin"></span>
+        ${t('an.processing')} <span class="font-mono text-mut2">${file.name}</span>
+      </div>
+      <div id="pipe-steps" class="space-y-1.5"></div>
+    </div>`;
+  const stepsEl = document.getElementById('pipe-steps');
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let sseBuf = '', gotDone = false;
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    sseBuf += decoder.decode(value, { stream: true });
+    const events = sseBuf.split('\n\n');
+    sseBuf = events.pop();
+    for (const evt of events) {
+      const parsed = parseSSE(evt);
+      if (!parsed) continue;
+      if (parsed.event === 'stages') {
+        stepsEl.innerHTML = (parsed.data.stages || []).map(s =>
+          `<div id="step-${s.stage}" class="flex items-center gap-2 text-[12px] text-mut2 transition">
+             <span class="step-dot w-4 h-4 rounded-full border border-line2 flex items-center justify-center text-[9px] shrink-0">•</span>
+             <span>${s.label}</span>
+             <span class="step-rows font-mono text-mut2 ml-auto"></span>
+           </div>`).join('');
+      } else if (parsed.event === 'stage') {
+        const el = document.getElementById('step-' + parsed.data.stage);
+        if (el) {
+          el.className = 'flex items-center gap-2 text-[12px] text-slate-300 transition';
+          const dot = el.querySelector('.step-dot');
+          dot.className = 'step-dot w-4 h-4 rounded-full bg-teal/20 border border-teal text-teal flex items-center justify-center text-[9px] shrink-0';
+          dot.textContent = '✓';
+          el.querySelector('.step-rows').textContent = (parsed.data.rows || 0).toLocaleString() + ' rows';
+        }
+      } else if (parsed.event === 'error') {
+        throw new Error(parsed.data.detail || 'compression error');
+      } else if (parsed.event === 'done') {
+        const data = parsed.data;
+        LAST_STATS = data.stats; LAST_COMPRESSED = data.compressed; LAST_HISTORY_ID = data.history_id;
+        showResult(data); loadHistory(); gotDone = true;
+      }
+    }
+  }
+  return gotDone;
 }
 
 function restoreDrop() {

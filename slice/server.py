@@ -17,7 +17,7 @@ from pydantic import BaseModel
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(_ROOT, "src"))
 
-from pipeline import run_pipeline  # noqa: E402
+from pipeline import run_pipeline, iter_pipeline, STAGES  # noqa: E402
 import injection_guard  # noqa: E402
 from . import config as cfg_mod  # noqa: E402
 from . import llm as llm_mod  # noqa: E402
@@ -122,12 +122,8 @@ def update_config(update: ConfigUpdate):
     return cfg_mod.redacted(cfg_mod.load_config())
 
 
-def _process_raw(raw: str, filename: str) -> dict:
-    """Run the pipeline on raw log text, attach stats, log to history."""
-    if not raw.strip():
-        raise HTTPException(status_code=400, detail="The log file is empty.")
-    compressed, stats = run_pipeline(raw)
-
+def _finalize_compression(compressed: str, stats: dict, filename: str) -> dict:
+    """Attach injection count, cost estimate, and a history record to a result."""
     # Injection guard: count injection attempts hidden in the compressed payload.
     stats["injection_hits"] = len(injection_guard.scan(compressed))
 
@@ -159,11 +155,43 @@ def _process_raw(raw: str, filename: str) -> dict:
     return {"compressed": compressed, "stats": stats, "filename": filename, "history_id": rec_id}
 
 
+def _process_raw(raw: str, filename: str) -> dict:
+    """Run the pipeline on raw log text, attach stats, log to history."""
+    if not raw.strip():
+        raise HTTPException(status_code=400, detail="The log file is empty.")
+    compressed, stats = run_pipeline(raw)
+    return _finalize_compression(compressed, stats, filename)
+
+
 @app.post("/api/compress")
 async def compress(file: UploadFile = File(...)):
     """Upload a log file, run the local pipeline, return stats + compressed text."""
     raw = (await file.read()).decode("utf-8", errors="ignore")
     return _process_raw(raw, file.filename)
+
+
+@app.post("/api/compress_stream")
+async def compress_stream(file: UploadFile = File(...)):
+    """Upload a log file and stream per-stage progress, then the final result."""
+    raw = (await file.read()).decode("utf-8", errors="ignore")
+    filename = file.filename
+    if not raw.strip():
+        raise HTTPException(status_code=400, detail="The log file is empty.")
+
+    def gen():
+        # Tell the UI the full list of stages up front so it can draw the steps.
+        yield _sse("stages", {"stages": [{"stage": s, "label": l} for s, l in STAGES]})
+        try:
+            for event in iter_pipeline(raw):
+                if event.get("done"):
+                    result = _finalize_compression(event["compressed"], event["stats"], filename)
+                    yield _sse("done", result)
+                else:
+                    yield _sse("stage", event)
+        except Exception as e:
+            yield _sse("error", {"detail": f"Compression failed: {e}"})
+
+    return StreamingResponse(gen(), media_type="text/event-stream")
 
 
 @app.get("/api/samples")

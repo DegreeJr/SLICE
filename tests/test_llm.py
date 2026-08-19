@@ -166,3 +166,21 @@ def test_analyze_endpoint_chunks_large_log(monkeypatch):
     body = r.json()
     assert body["chunks"] > 1                 # was split into multiple chunks
     assert body["verdict"] == "MALICIOUS"     # merged worst-case
+
+
+def test_compress_stream_endpoint_reports_stages():
+    from fastapi.testclient import TestClient
+    from slice.server import app
+
+    content = "\n".join(
+        f"Nov 30 06:00:{i % 60:02d} host sshd[{1000+i}]: Failed password for admin from 203.0.113.5 port {i} ssh2"
+        for i in range(60)
+    )
+    client = TestClient(app)
+    r = client.post("/api/compress_stream", files={"file": ("t.log", content, "text/plain")})
+    assert r.status_code == 200
+    body = r.text
+    assert "event: stages" in body     # step list sent up front
+    assert "event: stage" in body      # per-stage progress
+    assert "event: done" in body       # final result
+    assert '"compressed"' in body
