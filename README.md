@@ -21,16 +21,22 @@ But raw logs are **huge and repetitive** — they burn tokens and blow past the 
 SLICE runs a local pipeline (**filter noise → template → deduplicate → aggregate → compress**)
 so only a compact, information-dense summary is sent to the LLM.
 
-On a real public dataset (86,839-line SSH auth log from SecRepo):
+On a real public dataset (OTRF Security-Datasets, `LSASS_campaign_01`: 53,698 Windows/Sysmon
+events, 106 MB):
 
 | Metric | Before | After |
 | --- | --- | --- |
-| Lines | 86,839 | **25** |
-| Tokens (measured with tiktoken) | 2,333,505 | **504** (**−99.9%**) |
-| LLM verdict | — | **MALICIOUS · T1110 Brute Force** (still correct) |
+| Lines | 53,698 | **394** |
+| Tokens (tiktoken `cl100k_base`) | 38,372,240 | **206,901** (**−99.5%**) |
 
-> Numbers vary with your data — this is not a universal guarantee. The point is:
-> **drastic token savings while preserving the security signal.**
+Measured with `python main.py --input <file>`; how to download the file and reproduce this
+is in [`metrics/lsass_campaign.md`](metrics/lsass_campaign.md). The dataset is not
+bundled in this repository (106 MB). The bundled samples reproduce in seconds with
+`python main.py --bench` (see [Benchmark](#benchmark-reproducible)).
+
+> Numbers vary with your data — this is not a universal guarantee. The goal is
+> **large token savings while keeping the security signal**; whether the signal survives
+> is judged by an external LLM, which can be wrong (see [Known Limitations](#known-limitations)).
 
 **Privacy-first:** the pipeline runs entirely on your machine. Only the compressed result
 is sent to the LLM API you choose — raw logs never leave your host.
@@ -90,7 +96,7 @@ The recommended way to run SLICE on a server. It needs no local Python setup —
 
 ```bash
 git clone https://github.com/DegreeJr/SLICE
-cd slice
+cd SLICE
 docker compose up -d
 ```
 
@@ -176,13 +182,13 @@ returns a smaller one, until the final stage emits the compressed string.
 
 ```mermaid
 flowchart LR
-    RAW["Raw logs<br/>86,839 lines"] --> N["1 · Normalize<br/><i>parse JSON / syslog</i>"]
+    RAW["Raw logs<br/>53,698 lines (LSASS dataset)"] --> N["1 · Normalize<br/><i>parse JSON / syslog</i>"]
     N --> F["2 · Noise filter<br/><i>drop routine events</i>"]
     F --> T["3 · Templating<br/><i>mask IP / PID / NUM</i>"]
     T --> D["4 · Deduplicate<br/><i>collapse + count</i>"]
     D --> A["5 · Aggregate<br/><i>merge into &lt;VAR&gt;</i>"]
     A --> C["6 · Columnar<br/><i>keys once, values only</i>"]
-    C --> OUT["Compressed<br/>25 lines · 504 tokens"]
+    C --> OUT["Compressed<br/>394 lines · 206,901 tokens"]
 
     OUT -.->|only this leaves the host| LLM(["LLM API<br/>threat verdict"])
 
@@ -231,8 +237,7 @@ sshd[22493]: Received disconnect from 218.75.153.170: 11: Bye Bye
 ```
 
 *Why it's crucial:* without this, two lines differing only in PID/IP are treated as
-distinct and never collapse. Templating is what turned the auth.log result from −37% into
-−99%. **Complexity: O(n × line length).** *Trade-off:* regex masking can be over-eager
+distinct and never collapse. **Complexity: O(n × line length).** *Trade-off:* regex masking can be over-eager
 (a numeric username becomes `<NUM>`); Drain's fixed-depth tree is more precise.
 
 ### Stage 4 — Deduplication (`deduplicator.py`) — second key idea
@@ -240,7 +245,7 @@ distinct and never collapse. Templating is what turned the auth.log result from 
 A hash map `signature → (first_log, count)`. The signature deliberately **excludes the
 timestamp**: for templated logs it is just `("_tmpl", template)`; for JSON logs it is a
 tuple of stable fields (EventID, src_ip, user, status…). So 10 logins two seconds apart, or
-46,601 disconnects, collapse into one row with a `[xN]` counter. Information (the count) is
+9,900 failed logins in the bundled large sample, collapse into one row with a `[xN]` counter. Information (the count) is
 preserved; the text is written once. **Complexity: O(n)** with O(1) average lookups.
 
 ### Stage 5 — Aggregation (`aggregator.py`) — third key idea
@@ -252,15 +257,18 @@ Greedily, the largest such groups (≥ `min_group`) are merged: token `i` become
 counts are summed, and the number of distinct values is recorded:
 
 ```
-sshd[<PID>]: Invalid user oracle from <IP>
-sshd[<PID>]: Invalid user admin  from <IP>   →   [x12223] sshd[<PID>]: Invalid user <VAR> from <IP>  (431 distinct values)
-sshd[<PID>]: Invalid user test   from <IP>
-... (hundreds more)
+sshd[<PID>]: Failed password for postgres from <IP> port <NUM> ssh2
+sshd[<PID>]: Failed password for user     from <IP> port <NUM> ssh2   →   [x9900] sshd[<PID>]: Failed password for <VAR> from <IP> port <NUM> ssh2  (20 distinct values)
+sshd[<PID>]: Failed password for admin    from <IP> port <NUM> ssh2
+... (more usernames)
 ```
 
-*Why it matters:* this is what makes the output small enough to fit **any** model's context
-window (956 rows → 25). For triage it is arguably better — the LLM instantly reads
-"12,223 attempts across 431 usernames" = brute force. *Trade-off:* the specific value list
+(Real output for `samples/demo_ssh_bruteforce_large.log`: 42 templates after dedup become 4 rows
+plus the header line.)
+
+*Why it matters:* this is what keeps the output small enough to fit a model's context
+window. For triage it is arguably better — the LLM instantly reads
+"9,900 failed passwords across 20 usernames" = brute force. *Trade-off:* the specific value list
 is replaced by a distinct-count (great for triage, less for deep forensics).
 **Complexity: O(n × tokens).**
 
@@ -280,28 +288,30 @@ FIELDS: _count|EventID|src_ip|status
 This removes JSON's per-line syntactic overhead (`{`, `}`, `"`, `:`, repeated keys). Values
 are sanitized of `\n` and `|` so they don't break the delimiter. **Complexity: O(n × fields).**
 
-### End-to-end trace (real numbers, SecRepo auth.log)
+### End-to-end trace (real numbers, OTRF LSASS_campaign_01)
 
 | Stage | Rows remaining | What happened |
 | --- | --- | --- |
-| Input | 86,839 | raw SSH logs |
-| Normalize | 86,839 | syslog headers stripped to `_raw` |
-| Noise filter | ~81,600 | 5,226 routine lines dropped |
-| Templating + Dedup | 956 | 80,658 duplicate templates collapsed |
-| Aggregation | 25 | username templates folded into `<VAR>` |
-| Columnar | 25 lines | header once + values |
+| Input | 53,698 | raw Windows/Sysmon JSON events |
+| Noise filter | 53,520 | 178 routine events dropped |
+| Templating + Dedup | 393 | 53,127 duplicate rows collapsed |
+| Columnar output | 394 lines | header line once + 393 value rows |
 
-Tokens (measured with **tiktoken**, `cl100k_base`): **2,333,505 → 504 (−99.98%)**.
+Tokens (measured with **tiktoken**, `cl100k_base`): **38,372,240 → 206,901 (−99.5%)**.
+Details, checksums and the reproduce commands are in
+[`metrics/lsass_campaign.md`](metrics/lsass_campaign.md).
 
 ### Why you can trust the numbers
 
 Token counts are **measured, not guessed**: `token_counter.py` runs tiktoken (OpenAI's real
-tokenizer) on both the original and the compressed text. If tiktoken is unavailable offline,
-it falls back to a `chars / 4` estimate — used only for relative comparison, and stated
-honestly. Just as important, **the signal survives**: compressed 99%, the LLM still returns
-the correct `MALICIOUS / T1110 Brute Force` verdict. The compression is *lossy toward
-redundancy, lossless toward the security signal.* A context-window budget on the analyze
-step guarantees the payload fits the model you selected.
+tokenizer) on both the original and the compressed text. If tiktoken cannot load its
+vocabulary (it downloads it on first use, so it needs internet once), SLICE falls back to a
+`chars / 4` estimate. That is only a rough guide, so the fallback prints a warning to
+stderr, and every stats object, `--bench` run and `metrics/benchmark.md` records which
+tokenizer produced the numbers (`token_method`: `tiktoken:cl100k_base` or
+`estimate:chars/4`). Whether the security signal survives compression is judged by an
+external LLM, which is not deterministic; see Known Limitations. A context-window budget on
+the analyze step makes sure the payload fits the model you selected.
 
 ### Honest limits
 
@@ -346,19 +356,38 @@ python main.py --bench                    # print the table
 python main.py --bench --bench-out metrics   # also write metrics/benchmark.{md,csv}
 ```
 
-A committed sample (`samples/demo_ssh_bruteforce_large.log`, 12,001 lines) reproduces
-the headline compression locally:
+The bundled samples under `samples/` are small and synthetic, so they reproduce in seconds.
+Tokenizer used for the table below: `tiktoken:cl100k_base` (the output of `--bench` and
+`metrics/benchmark.md` state the tokenizer on every run).
 
 | File | Lines in → out | Tokens in → out | Reduction | Injection hits |
 | --- | ---: | ---: | ---: | ---: |
-| demo_ssh_bruteforce_large.log | 12,001 → 5 | 279,876 → 94 | −99.97% | 0 |
-| demo_ssh_bruteforce.log | 20 → 9 | 481 → 178 | −62.99% | 0 |
-| demo_windows_events.json | 10 → 6 | 459 → 163 | −64.49% | 0 |
-| demo_prompt_injection.log | 11 → 5 | 269 → 108 | −59.85% | 5 |
+| demo_prompt_injection.log | 11 → 5 | 401 → 130 | −67.58% | 5 |
+| demo_ssh_bruteforce.log | 20 → 9 | 798 → 235 | −70.55% | 0 |
+| demo_ssh_bruteforce_large.log | 12,001 → 5 | 435,809 → 136 | −99.97% | 0 |
+| demo_windows_events.json | 10 → 6 | 591 → 272 | −53.98% | 0 |
 
 Numbers are measured with tiktoken and depend on the data; highly repetitive logs
-compress far more than diverse ones. The `injection hits` column shows how many
-prompt-injection patterns the guard found in each sample before analysis.
+compress far more than diverse ones (the 10-line Windows sample compresses much less than
+the 12,001-line SSH sample). The `injection hits` column shows how many prompt-injection
+patterns the guard found in each sample before analysis. For a large real dataset, see
+[`metrics/lsass_campaign.md`](metrics/lsass_campaign.md) and the section below.
+
+### Reproduce on a real public dataset
+
+The 53,698-event OTRF `LSASS_campaign_01` log (106 MB) is not stored in this repository.
+To reproduce the headline numbers, download it from
+[OTRF Security-Datasets](https://github.com/OTRF/Security-Datasets/tree/master/datasets/compound/LSASS_campaign_01)
+(file `metasploit_logonpasswords_lsass_memory_dump.zip`), extract it, and run:
+
+```bash
+python main.py --input sample_logs/metasploit_logonpasswords_lsass_memory_dump/metasploit_logonpasswords_lsass_memory_dump.json
+```
+
+Expected (tiktoken `cl100k_base`): 53,698 → 394 lines and 38,372,240 → 206,901 tokens
+(−99.5%). Exact download commands, checksums, timings and memory figures are in
+[`metrics/lsass_campaign.md`](metrics/lsass_campaign.md). The LLM verdict for this
+file is not a benchmark number: it comes from an external model and varies between runs.
 
 ## Verdict trust (not blind trust in the LLM)
 
@@ -432,12 +461,25 @@ tests/            # unit tests (pipeline, injection guard, llm, bench)
 
 Stated plainly so the numbers are not misread:
 
-- **Compression depends on the data.** Highly repetitive logs (SSH brute force)
-  compress ~99%; diverse logs (mixed Sysmon/Windows events) compress far less
-  (~90% in our tests). Unique, non-repeating records barely compress by design.
+- **Compression depends on the data.** Highly repetitive logs compress ~99% or more
+  (the 12,001-line SSH sample: −99.97%; the 53,698-event LSASS dataset: −99.5%), while
+  the small, varied Windows sample compresses much less (−53.98%). Unique,
+  non-repeating records barely compress by design.
 - **The threat verdict comes from an external LLM**, not a model we trained. It
   can be wrong. Low-confidence or `UNKNOWN` verdicts are flagged for human review
   (`report.trust`), but SLICE does not replace an analyst.
+- **The verdict and MITRE ATT&CK list can miss techniques.** In the one saved run on the
+  LSASS dataset (a Metasploit `logonpasswords` LSASS memory-dump campaign), the reported
+  techniques were T1543.003 and T1055.001; no credential-dumping technique (T1003) was
+  listed. Treat the list as a starting point, not a complete mapping.
+- **The whole file is loaded into memory.** On the 106 MB LSASS file we measured a peak
+  of about 865 MB for the compression stages and about 1.9 GB when tiktoken token counting
+  is included (Windows, peak working set, one machine). Very large logs need a machine
+  with enough RAM; streaming input is not implemented.
+- **Token counts depend on the tokenizer.** Reported numbers use tiktoken `cl100k_base`.
+  If tiktoken cannot load its vocabulary (it needs internet once), SLICE falls back to a
+  rough `chars / 4` estimate and prints a warning; the stats record which method was used
+  (`token_method`). Other models tokenize differently, so their counts will differ.
 - **The injection guard is pattern-based.** It neutralizes known injection phrases
   and spotlights the payload as untrusted data, which raises the cost of an attack
   but does not guarantee immunity against novel or obfuscated (e.g. base64) payloads.
