@@ -84,6 +84,21 @@ Expose it on a network / server:
 python -m slice serve --host 0.0.0.0 --port 7654
 ```
 
+### Offline demo: warm the tokenizer cache once
+
+SLICE counts tokens with tiktoken (`cl100k_base`). tiktoken downloads that vocabulary the
+first time it runs, so a machine that has never been online with SLICE will fall back to a
+rough `chars / 4` estimate (and print a warning). Before an offline demo, run this **once
+while online**:
+
+```bash
+python scripts/warm_tiktoken.py
+```
+
+The vocabulary is cached in the git-ignored `.cache/tiktoken/` folder (override with
+`TIKTOKEN_CACHE_DIR`), and later runs need no network. The Docker image does this at build
+time.
+
 ### Run with Docker
 
 The recommended way to run SLICE on a server. It needs no local Python setup — just Docker.

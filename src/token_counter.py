@@ -7,7 +7,16 @@ tiktoken is unavailable (e.g. offline), it falls back to a rough estimate of
 1 token ~= 4 characters, which is good enough for relative comparison.
 """
 
+import os
 import sys
+
+# tiktoken downloads its vocabulary on first use. Cache it inside the project
+# (git-ignored) so one online run -- or `python scripts/warm_tiktoken.py` -- makes
+# later runs work offline. An explicit TIKTOKEN_CACHE_DIR from the user wins.
+CACHE_DIR = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".cache", "tiktoken"
+)
+os.environ.setdefault("TIKTOKEN_CACHE_DIR", CACHE_DIR)
 
 METHOD_TIKTOKEN = "tiktoken:cl100k_base"
 METHOD_ESTIMATE = "estimate:chars/4"
