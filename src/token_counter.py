@@ -7,19 +7,37 @@ tiktoken is unavailable (e.g. offline), it falls back to a rough estimate of
 1 token ~= 4 characters, which is good enough for relative comparison.
 """
 
+import sys
+
+METHOD_TIKTOKEN = "tiktoken:cl100k_base"
+METHOD_ESTIMATE = "estimate:chars/4"
+
 _enc = None
+_warned = False
 
 
 def _get_encoder():
-    global _enc
+    global _enc, _warned
     if _enc is not None:
         return _enc
     try:
         import tiktoken
         _enc = tiktoken.get_encoding("cl100k_base")
         return _enc
-    except Exception:
+    except Exception as e:
+        if not _warned:
+            _warned = True
+            print(
+                f"[!] tiktoken unavailable ({type(e).__name__}); token counts fall back "
+                f"to {METHOD_ESTIMATE} (a rough estimate) and are NOT tiktoken-measured.",
+                file=sys.stderr,
+            )
         return None
+
+
+def token_method() -> str:
+    """Name of the tokenizer actually used for counts: tiktoken or the chars/4 estimate."""
+    return METHOD_TIKTOKEN if _get_encoder() else METHOD_ESTIMATE
 
 
 def count_tokens(text: str) -> int:
@@ -56,4 +74,5 @@ def compute_stats(original_text: str, compressed_text: str) -> dict:
         "original_lines": original_lines,
         "compressed_lines": compressed_lines,
         "line_reduction_pct": round(line_reduction_pct, 1),
+        "token_method": token_method(),
     }

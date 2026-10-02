@@ -45,3 +45,12 @@ def test_collect_and_run_and_format():
         assert md.startswith("| File |")
         csv = bench.format_csv(rows)
         assert csv.startswith("file,lines_in")
+
+
+def test_rows_report_token_method():
+    with tempfile.TemporaryDirectory() as d:
+        p = _write(d, "a.log", "Nov 30 06:00:01 host sshd[1]: Failed password for x from 1.2.3.4 port 22 ssh2")
+        rows = bench.run_bench([p])
+        assert rows[0]["token_method"] in ("tiktoken:cl100k_base", "estimate:chars/4")
+        assert bench.rows_token_method(rows) == rows[0]["token_method"]
+        assert bench.format_csv(rows).splitlines()[0].endswith("token_method")

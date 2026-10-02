@@ -18,6 +18,7 @@ import glob
 
 from pipeline import run_pipeline
 import injection_guard
+import token_counter
 
 
 def bench_file(path: str) -> dict:
@@ -37,6 +38,7 @@ def bench_file(path: str) -> dict:
         "tokens_out": tout,
         "reduction_pct": reduction,
         "injection_hits": len(injection_guard.scan(compressed)),
+        "token_method": stats["token_method"],
     }
 
 
@@ -77,14 +79,22 @@ def format_markdown(rows: list) -> str:
     return header + "\n".join(body) + "\n"
 
 
+def rows_token_method(rows: list) -> str:
+    """Tokenizer used for the rows (a single name, or 'mixed' if they disagree)."""
+    methods = {r["token_method"] for r in rows if "token_method" in r}
+    if not methods:
+        return token_counter.token_method()
+    return methods.pop() if len(methods) == 1 else "mixed"
+
+
 def format_csv(rows: list) -> str:
-    out = ["file,lines_in,lines_out,tokens_in,tokens_out,reduction_pct,injection_hits"]
+    out = ["file,lines_in,lines_out,tokens_in,tokens_out,reduction_pct,injection_hits,token_method"]
     for r in rows:
         if "error" in r:
-            out.append(f"{r['file']},,,,,,")
+            out.append(f"{r['file']},,,,,,,")
             continue
         out.append(
             f"{r['file']},{r['lines_in']},{r['lines_out']},{r['tokens_in']},"
-            f"{r['tokens_out']},{r['reduction_pct']},{r['injection_hits']}"
+            f"{r['tokens_out']},{r['reduction_pct']},{r['injection_hits']},{r['token_method']}"
         )
     return "\n".join(out) + "\n"

@@ -38,7 +38,7 @@ def print_stats(stats: dict):
           f"(-{stats['line_reduction_pct']}%)")
     print(f"  Tokens : {stats['original_tokens']:>7}  ->  {stats['compressed_tokens']:>7}  "
           f"(-{stats['token_reduction_pct']}%)")
-    print(f"  Tokens saved    : {stats['tokens_saved']:,}")
+    print(f"  Tokens saved    : {stats['tokens_saved']:,}  [{stats['token_method']}]")
     print("-" * 54)
     print(f"  Noise removed   : {stats['noise_lines_removed']} lines")
     print(f"  Dupes collapsed : {stats['duplicate_lines_collapsed']} lines")
@@ -66,11 +66,14 @@ def run_benchmark(directory, out_dir=None):
     print(f"  Benchmarking {len(files)} file(s) in {directory}/ ...\n")
     rows = bench.run_bench(files)
     md = bench.format_markdown(rows)
+    method = bench.rows_token_method(rows)
+    print(f"  Tokenizer: {method}\n")
     print(md)
     if out_dir:
         os.makedirs(out_dir, exist_ok=True)
         with open(os.path.join(out_dir, "benchmark.md"), "w", encoding="utf-8") as f:
-            f.write("# SLICE Benchmark\n\nReproduce with: `python main.py --bench --bench-out " + out_dir + "`\n\n" + md)
+            f.write("# SLICE Benchmark\n\nReproduce with: `python main.py --bench --bench-out " + out_dir + "`\n\n"
+                    f"Tokenizer: `{method}`\n\n" + md)
         with open(os.path.join(out_dir, "benchmark.csv"), "w", encoding="utf-8") as f:
             f.write(bench.format_csv(rows))
         print(f"  Saved: {out_dir}/benchmark.md and {out_dir}/benchmark.csv")
