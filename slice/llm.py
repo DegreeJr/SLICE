@@ -13,6 +13,7 @@ Two entry points:
 """
 
 import json
+import re
 
 REQUEST_TIMEOUT = 60  # seconds; keeps a slow provider from hanging the request
 VALID_VERDICTS = {"BENIGN", "SUSPICIOUS", "MALICIOUS", "UNKNOWN"}
@@ -189,6 +190,56 @@ def split_payload(text: str, max_tokens: int):
     return chunks or [text]
 
 
+_TECHNIQUE_ID = re.compile(r"\bT\d{4}(?:\.\d{3})?\b")
+
+
+def _split_techniques(text: str) -> list:
+    """Split a technique string on top-level `,` `;` `/` (not inside parentheses)."""
+    items, depth, start = [], 0, 0
+    for i, ch in enumerate(text):
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth = max(0, depth - 1)
+        elif ch in ",;/" and depth == 0:
+            items.append(text[start:i])
+            start = i + 1
+    items.append(text[start:])
+    return [it.strip() for it in items if it.strip()]
+
+
+def _dedupe_techniques(raw_values: list) -> list:
+    """Collect technique strings, dropping repeats by MITRE ID (first label wins).
+
+    "T1055 (Process Injection)" and "T1055 (Injection)" are the same technique even
+    though the strings differ. Text without an ID falls back to a case-insensitive match.
+    """
+    out, seen_ids, seen_text = [], set(), set()
+    for t in raw_values:
+        t = str(t or "").strip()
+        if not t or t.lower() == "none":
+            continue
+        items = _split_techniques(t)
+        kept = []
+        for item in items:
+            ids = [i.upper() for i in _TECHNIQUE_ID.findall(item)]
+            if ids:
+                if all(i in seen_ids for i in ids):
+                    continue
+                seen_ids.update(ids)
+            else:
+                key = item.lower()
+                if key in seen_text:
+                    continue
+                seen_text.add(key)
+            kept.append(item)
+        if len(kept) == len(items):
+            out.append(t)                 # nothing dropped: keep the model's own wording
+        elif kept:
+            out.append(", ".join(kept))
+    return out
+
+
 def merge_reports(reports: list) -> dict:
     """Merge per-chunk reports into one: worst-case verdict, union of details."""
     if not reports:
@@ -207,11 +258,7 @@ def merge_reports(reports: list) -> dict:
     except (ValueError, TypeError):
         confidence = 0.0
 
-    techniques = []
-    for r in reports:
-        t = str(r.get("mitre_technique") or "").strip()
-        if t and t.lower() != "none" and t not in techniques:
-            techniques.append(t)
+    techniques = _dedupe_techniques([r.get("mitre_technique") for r in reports])
 
     summaries = []
     for i, r in enumerate(reports, 1):
